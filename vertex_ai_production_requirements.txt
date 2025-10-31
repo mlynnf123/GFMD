@@ -1,0 +1,54 @@
+# GFMD Swarm Agent Production Requirements - Vertex AI Deployment
+
+# Core Vertex AI and LangGraph
+google-cloud-aiplatform[agent_engines,langgraph]>=1.40.0
+vertexai>=1.40.0
+
+# LangGraph and LangChain Core
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-google-vertexai>=1.0.0
+langgraph-checkpoint>=2.0.0
+
+# Data Processing and Validation
+pydantic>=2.7.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# HTTP and API Clients
+httpx>=0.27.0
+requests>=2.31.0
+aiohttp>=3.9.0
+
+# Date/Time and Utilities
+python-dateutil>=2.8.2
+orjson>=3.9.0
+
+# Environment and Configuration
+python-dotenv>=1.0.0
+
+# Logging and Monitoring
+structlog>=23.1.0
+google-cloud-logging>=3.8.0
+google-cloud-monitoring>=2.16.0
+
+# Security and Authentication
+google-auth>=2.16.0
+google-cloud-secret-manager>=2.16.0
+
+# Database and Storage (optional)
+google-cloud-storage>=2.10.0
+google-cloud-firestore>=2.13.0
+
+# Task Queue and Scheduling (optional)
+google-cloud-tasks>=2.13.0
+
+# Error Tracking and Performance Monitoring
+google-cloud-error-reporting>=1.9.0
+google-cloud-trace>=1.12.0
+
+# Development and Testing (not included in production)
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0
+# black>=23.7.0
+# ruff>=0.0.290

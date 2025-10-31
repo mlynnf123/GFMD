@@ -1,0 +1,43 @@
+# Cloud Build configuration for automated deployment
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/gfmd-a2a-swarm-agent:$COMMIT_SHA', '.']
+  
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/gfmd-a2a-swarm-agent:$COMMIT_SHA']
+  
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'gfmd-a2a-swarm-agent'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/gfmd-a2a-swarm-agent:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '900'
+      - '--max-instances'
+      - '10'
+      - '--min-instances'
+      - '1'
+      - '--set-env-vars'
+      - 'GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json'
+      - '--set-secrets'
+      - 'VERTEX_AI_PROJECT_ID=vertex-ai-project-id:latest,VERTEX_AI_LOCATION=vertex-ai-location:latest'
+
+images:
+  - 'gcr.io/$PROJECT_ID/gfmd-a2a-swarm-agent:$COMMIT_SHA'
+
+timeout: '1200s'

@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# API Keys & Secrets
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+.env
+.env.local
+.env.production
+gmail_token.json
+google_sheets_credentials.json
+google_search_credentials.json
+gmail_credentials.json
+
+# Logs
+logs/
+*.log
+
+# Campaign Data
+campaign_tracking.json
+automation_state.json
+daily_email_count.json
+email_errors.json
+email_verification_cache.json
+perplexity_usage.json
+
+# Generated Files
+*.png
+*.csv
+!definitive_healthcare_data.csv  # Keep the main data file
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Next.js Dashboard
+dashboard/.next/
+dashboard/node_modules/
+dashboard/out/
+dashboard/.env.local
+dashboard/tsconfig.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# Backups
+*_backup_*
+*_OLD_*
+dashboard_backup_*/
+.env.langsmith
+perplexity_*.py
+test_perplexity_*.py
