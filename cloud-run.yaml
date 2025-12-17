@@ -1,0 +1,95 @@
+# Google Cloud Run service configuration
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: gfmd-email-automation
+  annotations:
+    cloud.google.com/region: us-central1
+    run.googleapis.com/launch-stage: BETA
+spec:
+  template:
+    metadata:
+      annotations:
+        # CPU is always allocated (required for scheduler)
+        run.googleapis.com/cpu-throttling: "false"
+        # Minimum instances to keep warm
+        autoscaling.knative.dev/minScale: "1"
+        # Maximum instances
+        autoscaling.knative.dev/maxScale: "1"
+        # Execution environment
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      # Service account for Google Cloud access
+      serviceAccountName: gfmd-automation-sa
+      
+      containers:
+      - name: gfmd-automation
+        image: gcr.io/PROJECT_ID/gfmd-automation:latest
+        
+        # Resource allocation
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+          requests:
+            cpu: "0.5"
+            memory: "512Mi"
+        
+        # Environment variables
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: MONGODB_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: gfmd-secrets
+              key: mongodb-connection-string
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gfmd-secrets
+              key: mongodb-password
+        - name: GROQ_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gfmd-secrets
+              key: groq-api-key
+        - name: GMAIL_CREDENTIALS_PATH
+          value: "/secrets/gmail-credentials.json"
+        
+        # Volume mounts for secrets
+        volumeMounts:
+        - name: gmail-credentials
+          mountPath: /secrets
+          readOnly: true
+        
+        # Health check
+        livenessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 30
+          periodSeconds: 300
+        
+        # Startup probe
+        startupProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - "from mongodb_storage import MongoDBStorage; MongoDBStorage(); print('OK')"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 10
+      
+      # Volumes
+      volumes:
+      - name: gmail-credentials
+        secret:
+          secretName: gmail-credentials
+  
+  traffic:
+  - percent: 100
+    latestRevision: true

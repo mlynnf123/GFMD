@@ -6,6 +6,8 @@ Handles OAuth authentication and email sending via Gmail API
 import os
 import json
 import logging
+import uuid
+import re
 from typing import Dict, List, Optional
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -23,12 +25,17 @@ logger = logging.getLogger(__name__)
 class GmailIntegration:
     """Gmail API integration for sending emails via GFMD agents"""
     
-    SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+    SCOPES = [
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/gmail.readonly'
+    ]
     
-    def __init__(self, credentials_file: str = "gmail_credentials.json"):
+    def __init__(self, credentials_file: str = "gmail_credentials.json", tracking_domain: str = None):
         self.credentials_file = credentials_file
         self.token_file = "gmail_token.json"
         self.service = None
+        self.tracking_domain = tracking_domain or "gfmd.com"  # Replace with actual tracking domain
+        self.tracking_base_url = f"https://{self.tracking_domain}/track"
         self._authenticate()
     
     def _authenticate(self):
@@ -75,6 +82,41 @@ class GmailIntegration:
             logger.error(f"Failed to build Gmail service: {e}")
             raise Exception(f"Gmail service initialization failed: {e}")
     
+    def _generate_tracking_id(self) -> str:
+        """Generate unique tracking ID for email"""
+        return str(uuid.uuid4())
+    
+    def _create_tracking_pixel(self, tracking_id: str) -> str:
+        """Create invisible tracking pixel HTML for email opens"""
+        pixel_url = f"{self.tracking_base_url}/open/{tracking_id}"
+        return f'<img src="{pixel_url}" width="1" height="1" style="display:none;" alt="">'
+    
+    def _add_click_tracking(self, html_content: str, tracking_id: str) -> str:
+        """Add click tracking to all URLs in email content"""
+        def replace_url(match):
+            original_url = match.group(1)
+            # Create tracked URL
+            tracked_url = f"{self.tracking_base_url}/click/{tracking_id}?url={original_url}"
+            return f'href="{tracked_url}"'
+        
+        # Replace all href attributes
+        pattern = r'href="([^"]+)"'
+        return re.sub(pattern, replace_url, html_content)
+    
+    def _enhance_html_with_tracking(self, html_content: str, tracking_id: str) -> str:
+        """Add tracking pixel and click tracking to HTML email"""
+        # Add click tracking to URLs
+        tracked_html = self._add_click_tracking(html_content, tracking_id)
+        
+        # Add tracking pixel just before closing body tag
+        tracking_pixel = self._create_tracking_pixel(tracking_id)
+        if '</body>' in tracked_html:
+            tracked_html = tracked_html.replace('</body>', f'{tracking_pixel}</body>')
+        else:
+            tracked_html += tracking_pixel
+        
+        return tracked_html
+    
     def send_email(self, 
                    to_email: str,
                    subject: str, 
@@ -82,9 +124,10 @@ class GmailIntegration:
                    from_email: Optional[str] = None,
                    html_body: Optional[str] = None,
                    cc: Optional[List[str]] = None,
-                   bcc: Optional[List[str]] = None) -> Dict:
+                   bcc: Optional[List[str]] = None,
+                   enable_tracking: bool = True) -> Dict:
         """
-        Send email via Gmail API
+        Send email via Gmail API with optional tracking
         
         Args:
             to_email: Recipient email address
@@ -94,11 +137,15 @@ class GmailIntegration:
             html_body: HTML email body (optional)
             cc: CC recipients (optional)
             bcc: BCC recipients (optional)
+            enable_tracking: Enable open/click tracking (default: True)
             
         Returns:
-            Dict with success status and message details
+            Dict with success status, message details, and tracking ID
         """
         try:
+            # Generate tracking ID if tracking is enabled
+            tracking_id = self._generate_tracking_id() if enable_tracking else None
+            
             # Create message
             message = MIMEMultipart('alternative')
             message['To'] = to_email
@@ -113,13 +160,21 @@ class GmailIntegration:
             if bcc:
                 message['Bcc'] = ', '.join(bcc)
             
+            # Add tracking ID to message headers
+            if tracking_id:
+                message['X-Tracking-ID'] = tracking_id
+            
             # Add plain text part
             text_part = MIMEText(body, 'plain')
             message.attach(text_part)
             
-            # Add HTML part if provided
+            # Add HTML part with tracking if provided
             if html_body:
-                html_part = MIMEText(html_body, 'html')
+                if enable_tracking and tracking_id:
+                    enhanced_html = self._enhance_html_with_tracking(html_body, tracking_id)
+                    html_part = MIMEText(enhanced_html, 'html')
+                else:
+                    html_part = MIMEText(html_body, 'html')
                 message.attach(html_part)
             
             # Encode message
@@ -136,6 +191,7 @@ class GmailIntegration:
             return {
                 'success': True,
                 'message_id': result['id'],
+                'tracking_id': tracking_id,
                 'to': to_email,
                 'subject': subject,
                 'sent_at': result.get('internalDate')
@@ -147,7 +203,8 @@ class GmailIntegration:
                 'success': False,
                 'error': str(e),
                 'to': to_email,
-                'subject': subject
+                'subject': subject,
+                'tracking_id': tracking_id if 'tracking_id' in locals() else None
             }
         except Exception as e:
             logger.error(f"Email sending failed: {e}")
@@ -155,7 +212,8 @@ class GmailIntegration:
                 'success': False,
                 'error': str(e),
                 'to': to_email,
-                'subject': subject
+                'subject': subject,
+                'tracking_id': tracking_id if 'tracking_id' in locals() else None
             }
     
     def send_gfmd_outreach_email(self, 
@@ -274,6 +332,126 @@ class GmailIntegration:
         except Exception as e:
             logger.error(f"Failed to retrieve emails: {e}")
             return []
+    
+    def check_for_replies(self, since_date: str = None, max_results: int = 50) -> List[Dict]:
+        """
+        Check for email replies to sent messages
+        
+        Args:
+            since_date: Check for replies since this date (YYYY/MM/DD format)
+            max_results: Maximum number of replies to return
+            
+        Returns:
+            List of reply data with tracking info
+        """
+        try:
+            # Build query for replies
+            query = "in:inbox"
+            if since_date:
+                query += f" after:{since_date}"
+            
+            # Get inbox messages
+            results = self.service.users().messages().list(
+                userId='me',
+                q=query,
+                maxResults=max_results
+            ).execute()
+            
+            messages = results.get('messages', [])
+            replies = []
+            
+            for message in messages:
+                # Get full message details
+                msg = self.service.users().messages().get(
+                    userId='me',
+                    id=message['id'],
+                    format='full'
+                ).execute()
+                
+                # Check if this is a reply to our tracked email
+                reply_data = self._extract_reply_info(msg)
+                if reply_data:
+                    replies.append(reply_data)
+            
+            logger.info(f"Found {len(replies)} replies")
+            return replies
+            
+        except Exception as e:
+            logger.error(f"Failed to check for replies: {e}")
+            return []
+    
+    def _extract_reply_info(self, message: Dict) -> Optional[Dict]:
+        """Extract reply information from a Gmail message"""
+        try:
+            payload = message.get('payload', {})
+            headers = payload.get('headers', [])
+            
+            # Extract header information
+            reply_data = {
+                'message_id': message['id'],
+                'thread_id': message.get('threadId'),
+                'from': None,
+                'to': None,
+                'subject': None,
+                'date': None,
+                'body': None,
+                'original_tracking_id': None,
+                'in_reply_to': None
+            }
+            
+            # Parse headers
+            for header in headers:
+                name = header['name'].lower()
+                value = header['value']
+                
+                if name == 'from':
+                    reply_data['from'] = value
+                elif name == 'to':
+                    reply_data['to'] = value
+                elif name == 'subject':
+                    reply_data['subject'] = value
+                elif name == 'date':
+                    reply_data['date'] = value
+                elif name == 'in-reply-to':
+                    reply_data['in_reply_to'] = value
+                elif name == 'x-tracking-id':
+                    reply_data['original_tracking_id'] = value
+            
+            # Extract email body
+            body_text = self._extract_message_body(payload)
+            reply_data['body'] = body_text
+            
+            # Check if this is actually a reply to our email
+            if reply_data['in_reply_to'] or 'Re:' in (reply_data['subject'] or ''):
+                return reply_data
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to extract reply info: {e}")
+            return None
+    
+    def _extract_message_body(self, payload: Dict) -> str:
+        """Extract text body from Gmail message payload"""
+        try:
+            # Check if message has parts (multipart)
+            if 'parts' in payload:
+                for part in payload['parts']:
+                    if part['mimeType'] == 'text/plain':
+                        data = part['body'].get('data')
+                        if data:
+                            return base64.urlsafe_b64decode(data).decode('utf-8')
+            
+            # Check if message body is directly in payload
+            elif payload.get('body', {}).get('data'):
+                data = payload['body']['data']
+                return base64.urlsafe_b64decode(data).decode('utf-8')
+            
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Failed to extract message body: {e}")
+            return ""
 
 
 def setup_gmail_integration() -> Dict:

@@ -28,7 +28,7 @@ class GroqBaseAgent:
         self,
         agent_id: str,
         role: AgentRole,
-        model: str = "llama-3.3-70b-versatile",
+        model: str = "openai/gpt-oss-120b",
         temperature: float = 0.7
     ):
         self.agent_id = agent_id
@@ -138,8 +138,8 @@ async def test_groq_agent():
         )
 
         test_input = {
-            "task": "Summarize what GFMD Medical Devices does",
-            "context": "Medical device company focused on laboratory equipment"
+            "task": "Summarize what GFMD does",
+            "context": "Company focused on Narc Gone drug destruction products for law enforcement agencies"
         }
 
         print(f"📤 Sending test prompt...")

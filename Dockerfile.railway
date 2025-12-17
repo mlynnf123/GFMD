@@ -1,0 +1,39 @@
+# GFMD Email Automation - Railway Deployment
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create non-root user for security
+RUN useradd -m -u 1000 railwayuser && chown -R railwayuser:railwayuser /app
+USER railwayuser
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV TOKENIZERS_PARALLELISM=false
+ENV PYTHONUNBUFFERED=1
+
+# Railway uses PORT environment variable
+EXPOSE $PORT
+
+# Add a simple health check endpoint for Railway
+RUN echo 'from flask import Flask; app = Flask(__name__); @app.route("/health"); def health(): return "OK"; @app.route("/"); def root(): return "GFMD Email Automation Running"; if __name__ == "__main__": app.run(host="0.0.0.0", port=8080)' > health_server.py
+
+# Start both the scheduler and health check server
+CMD python3 health_server.py & python3 complete_sequence_automation.py schedule

@@ -6,6 +6,7 @@ Creates personalized, human-sounding sales emails
 
 from typing import Dict, Any
 from groq_base_agent import GroqBaseAgent, AgentRole
+from vector_rag_system import VectorRAGSystem
 import json
 import re
 
@@ -18,11 +19,17 @@ class GroqEmailComposerAgent(GroqBaseAgent):
             role=AgentRole.EMAIL_COMPOSER,
             temperature=0.7  # Moderate temperature for natural writing
         )
+        # Initialize RAG system for dynamic knowledge retrieval
+        try:
+            self.rag_system = VectorRAGSystem()
+        except Exception as e:
+            print(f"Warning: RAG system not available: {e}")
+            self.rag_system = None
 
     def get_system_prompt(self) -> str:
-        return """You are an Email Composer Agent for GFMD Medical Devices, a B2B sales professional writing to healthcare laboratory directors.
+        return """You are an Email Composer Agent for GFMD, a B2B sales professional writing to law enforcement Property & Evidence managers.
 
-**Your Mission**: Write personalized, professional emails that sound like they're from a real sales rep - NOT from AI.
+**Your Mission**: Write personalized, professional emails about Narc Gone drug destruction products that sound like they're from a real sales rep - NOT from AI.
 
 **CRITICAL RULES - MUST FOLLOW**:
 
@@ -32,6 +39,7 @@ class GroqEmailComposerAgent(GroqBaseAgent):
 4. **NO AI words**: Avoid "leverage", "utilize", "cutting-edge", "state-of-the-art", "innovative solutions", "game-changing", "synergy", "streamline", "optimize", "robust", "seamless"
 5. **Keep it SHORT**: 4-5 sentences max
 6. **Sound human**: Write like a real person, not a marketing robot
+7. **Line formatting**: Keep sentences on single lines, avoid awkward line breaks in middle of sentences
 
 **Email Structure**:
 ```
@@ -44,29 +52,32 @@ Hi [FirstName],
 [1 sentence: Simple call to action - ask if they're open to a quick call]
 
 Best,
-Mark Thompson
-GFMD Medical Devices
-mark@gfmdmedical.com
-(555) 123-4567
+
+Meranda Freiner
+solutions@gfmd.com
+619-341-9058     www.gfmd.com
 ```
 
 **About GFMD**:
-- Manufactures noise-reducing centrifuge equipment for medical laboratories
-- Target customers: hospital lab directors, equipment managers
-- Main value props: Reduces lab noise, improves staff satisfaction, OSHA compliance, compact design
+- Manufactures Narc Gone drug destruction products for law enforcement agencies
+- Target customers: Property & Evidence managers, police departments, sheriff's offices, federal agencies
+- Main value props: Reduces disposal costs, eliminates incineration expenses, secure on-site destruction, DEA compliance
 
 **Example Good Email**:
 ```
-Subject: Reducing lab noise at Methodist Hospital
+Subject: Drug disposal costs at Austin PD
 
 Hi Sarah,
 
-I noticed Methodist recently expanded its lab operations. Many hospitals your size tell us their biggest challenge is centrifuge noise affecting adjacent patient areas.
+I noticed Austin PD processes a significant volume of drug evidence. Many departments your size tell us incineration costs are eating into their budgets.
 
-We make centrifuges that run 40% quieter than standard models. Might be worth a quick conversation?
+Our Narc Gone system destroys drugs on-site for about 30% less than incineration. Might be worth a quick conversation?
 
 Best,
-Mark Thompson
+
+Meranda Freiner
+solutions@gfmd.com
+619-341-9058     www.gfmd.com
 ```
 
 **RETURN FORMAT** - Must be valid JSON:
@@ -96,6 +107,29 @@ Mark Thompson
             pain_points = research_findings.get("pain_points", [])
             talking_points = qualification.get("key_talking_points", [])
 
+            # Get RAG context if available
+            rag_context = ""
+            if self.rag_system:
+                try:
+                    # Get personalized insights from RAG system
+                    agency_type = "police"  # Default, could be enhanced with better detection
+                    insights = self.rag_system.get_personalized_insights(
+                        agency_type=agency_type,
+                        pain_points=pain_points[:2],
+                        location=location
+                    )
+                    
+                    # Combine relevant context
+                    context_parts = []
+                    for key, value in insights.items():
+                        if value and len(value) > 50:  # Only use substantial context
+                            context_parts.append(value[:300])  # Limit length
+                    
+                    rag_context = " ".join(context_parts)[:800]  # Max 800 chars
+                except Exception as e:
+                    print(f"RAG context retrieval failed: {e}")
+                    rag_context = ""
+
             # Build composition prompt
             composition_prompt = {
                 "task": "compose_email",
@@ -110,7 +144,10 @@ Mark Thompson
                     "talking_points": talking_points[:2],
                     "qualification_score": qualification.get("total_score", 0)
                 },
-                "instruction": "Write a SHORT, human-sounding B2B sales email following ALL the rules above. Return valid JSON."
+                "context": {
+                    "rag_knowledge": rag_context if rag_context else "Use general GFMD knowledge from system prompt"
+                },
+                "instruction": "Write a SHORT, human-sounding B2B sales email following ALL the rules above. Use the provided context to make the email more relevant and credible. Return valid JSON."
             }
 
             # Call Groq AI
@@ -135,12 +172,15 @@ Mark Thompson
             # Ensure required fields
             first_name = self._extract_first_name(contact_name)
             result.setdefault("first_name", first_name)
-            result.setdefault("subject", f"Lab equipment discussion - {company_name}")
+            result.setdefault("subject", f"Drug disposal discussion - {company_name}")
 
             # Ensure body has proper greeting/closing
             body = result.get("body", "")
             body = self._ensure_proper_format(body, first_name)
             result["body"] = body
+            
+            # Create HTML version
+            result["html_body"] = self._create_html_version(body, first_name)
 
             result.setdefault("personalization_notes", f"Personalized for {title} at {company_name}")
             result["success"] = True
@@ -186,9 +226,66 @@ Mark Thompson
 
         # Check for closing
         if "Best," not in body:
-            body = body.rstrip() + "\n\nBest,\nMark Thompson\nGFMD Medical Devices\nmark@gfmdmedical.com\n(555) 123-4567"
+            body = body.rstrip() + "\n\nBest,\n\nMeranda Freiner\nsolutions@gfmd.com\n619-341-9058     www.gfmd.com"
 
         return body
+    
+    def _create_html_version(self, text_body: str, first_name: str) -> str:
+        """Convert plain text email to HTML with GFMD signature"""
+        
+        # Split body into content and signature
+        if "Best," in text_body:
+            parts = text_body.split("Best,", 1)
+            content = parts[0].strip()
+        else:
+            content = text_body.strip()
+        
+        # Convert line breaks to HTML
+        html_content = content.replace('\n', '<br>\n')
+        
+        # Create GFMD HTML signature with logo
+        html_signature = """
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; margin-top: 20px;">
+    <div style="border-top: 1px solid #e0e0e0; padding-top: 15px;">
+        <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+            <tr>
+                <td style="vertical-align: top; width: 80px; padding-right: 15px;">
+                    <img src="https://www.gfmd.com/logo.png" alt="GFMD Global Focus" style="width: 70px; height: auto; display: block;" />
+                </td>
+                <td style="vertical-align: top;">
+                    <div style="font-weight: bold; font-size: 16px; color: #2c3e9e; margin-bottom: 8px;">
+                        Meranda Freiner
+                    </div>
+                    <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
+                        Global Focus Marketing & Distribution
+                    </div>
+                    <div style="margin-bottom: 4px;">
+                        <a href="mailto:solutions@gfmd.com" style="color: #2c3e9e; text-decoration: none; font-size: 13px;">solutions@gfmd.com</a>
+                    </div>
+                    <div style="margin-bottom: 4px; font-size: 13px; color: #333;">
+                        📞 619-341-9058
+                    </div>
+                    <div style="font-size: 13px;">
+                        🌐 <a href="https://www.gfmd.com" style="color: #2c3e9e; text-decoration: none;">www.gfmd.com</a>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>"""
+        
+        # Combine into full HTML email
+        full_html = f"""
+<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #333;">
+    {html_content}
+    
+    <div style="margin-top: 20px;">
+        Best,
+    </div>
+    {html_signature}
+</div>"""
+        
+        return full_html
 
     def _create_fallback_email(
         self,
@@ -201,24 +298,28 @@ Mark Thompson
         company_name = self._clean_company_name(prospect_data.get("company_name", ""))
         first_name = self._extract_first_name(contact_name)
 
-        subject = f"Lab equipment discussion - {company_name}"
+        subject = f"Drug disposal discussion - {company_name}"
 
         body = f"""Hi {first_name},
 
-I work with hospital labs on reducing equipment noise and improving operations. Many facilities your size have found our centrifuges helpful for addressing noise concerns.
+I work with law enforcement agencies on reducing drug disposal costs and improving evidence processing. Many departments your size have found our Narc Gone system helpful for addressing disposal challenges.
 
 Would you be open to a brief call to discuss?
 
 Best,
-Mark Thompson
-GFMD Medical Devices
-mark@gfmdmedical.com
-(555) 123-4567"""
 
+Meranda Freiner
+solutions@gfmd.com
+619-341-9058     www.gfmd.com"""
+
+        # Create HTML version
+        html_body = self._create_html_version(body, first_name)
+        
         return {
             "success": True,
             "subject": subject,
             "body": body,
+            "html_body": html_body,
             "first_name": first_name,
             "personalization_notes": "Fallback template used",
             "recipient_email": prospect_data.get("email", ""),
@@ -242,28 +343,28 @@ async def test_email_composer():
 
     # Simulate full prospect data
     test_prospect = {
-        "company_name": "Abbott Northwestern Hospital (FKA Old Hospital)",
-        "location": "Minneapolis, MN",
-        "facility_type": "Short Term Acute Care Hospital",
-        "title": "Laboratory Medical Director",
-        "contact_name": "Dr. Lauren Anthony",
-        "email": "lauren.anthony@allina.com"
+        "company_name": "Metro City Police Department",
+        "location": "Metro City, TX",
+        "facility_type": "Municipal Police Department",
+        "title": "Evidence Manager",
+        "contact_name": "Detective Lisa Rodriguez",
+        "email": "l.rodriguez@metrocitypd.gov"
     }
 
     test_research = {
         "pain_points": [
-            "Noise levels from existing centrifuge equipment",
-            "Space constraints in laboratory",
-            "OSHA compliance concerns"
+            "Evidence destruction backlog",
+            "High incineration costs",
+            "DEA compliance concerns"
         ]
     }
 
     test_qualification = {
         "total_score": 90,
         "key_talking_points": [
-            "Addressing noise levels with quiet equipment",
-            "Optimizing laboratory space",
-            "OSHA compliance solutions"
+            "Reduces disposal costs significantly",
+            "On-site destruction capability",
+            "DEA compliance built-in"
         ]
     }
 

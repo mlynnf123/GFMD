@@ -7,25 +7,31 @@ import dns.resolver
 from typing import Dict, Any, Tuple
 
 class EmailVerificationSystem:
-    """Verify emails before sending to ensure they're real healthcare addresses"""
+    """Verify emails before sending to ensure they're real law enforcement/government addresses"""
     
     def __init__(self):
-        # Healthcare domain patterns that are likely legitimate
-        self.healthcare_domains = {
-            # Major healthcare networks
-            'kaiserpermanente.org', 'mayoclinic.org', 'clevelandclinic.org',
-            'houstonmethodist.org', 'jhmi.edu', 'partners.org', 'upmc.edu',
-            'nyp.org', 'mountsinai.org', 'cedars-sinai.org', 'choa.org',
+        # Law enforcement and government domain patterns that are likely legitimate
+        self.target_domains = {
+            # Federal agencies
+            'dea.gov', 'dhs.gov', 'fbi.gov', 'atf.gov', 'ice.gov', 'cbp.gov',
+            'usss.gov', 'usms.gov', 'bop.gov', 'uscourts.gov',
             
-            # Common healthcare domain patterns
-            'health.org', 'healthcare.org', 'hospital.org', 'med.org',
-            'medical.org', 'clinic.org', 'healthsystem.org', 'hcahealthcare.com',
+            # Government domain patterns
+            '.gov', '.mil', 'state.gov', 'local.gov', 'county.gov', 'city.gov',
             
-            # Government/academic medical domains
-            '.gov', '.edu', 'nih.gov', 'va.gov', 'ihs.gov',
+            # Police and sheriff departments
+            'police.gov', 'sheriff.gov', 'pd.gov', 'so.gov',
+            'policedept.gov', 'sheriffsoffice.gov', 'lawenforcement.gov',
             
-            # Hospital network patterns
-            'ascension.org', 'commonspirit.org', 'tenetnet.com', 'hcahealthcare.com'
+            # Common law enforcement patterns
+            'police.org', 'sheriff.org', 'pd.org', 'so.org',
+            'policedept.org', 'sheriffsoffice.org', 'lawenforcement.org',
+            
+            # State and local government
+            '.state.gov', '.co.gov', '.ci.gov', '.city.gov',
+            
+            # Educational institutions with law enforcement programs
+            '.edu'
         }
         
         # Patterns that suggest fake/placeholder emails
@@ -49,7 +55,7 @@ class EmailVerificationSystem:
     
     def verify_email(self, email: str, organization_name: str = "") -> Tuple[bool, str]:
         """
-        Verify if an email is legitimate for healthcare outreach
+        Verify if an email is legitimate for law enforcement/government outreach
         Returns: (is_valid, reason)
         """
         if not email or not isinstance(email, str):
@@ -65,10 +71,10 @@ class EmailVerificationSystem:
         if self._is_fake_email(email):
             return False, "Appears to be fake/placeholder email"
         
-        # 3. Check if domain is healthcare-related
+        # 3. Check if domain is law enforcement/government-related
         domain = email.split('@')[1] if '@' in email else ""
-        if not self._is_healthcare_domain(domain, organization_name):
-            return False, "Not a healthcare domain"
+        if not self._is_target_domain(domain, organization_name):
+            return False, "Not a law enforcement or government domain"
         
         # 4. Check for generic role emails (warning but not blocking)
         if self._is_generic_role_email(email):
@@ -92,23 +98,26 @@ class EmailVerificationSystem:
                 return True
         return False
     
-    def _is_healthcare_domain(self, domain: str, organization_name: str = "") -> bool:
-        """Check if domain is healthcare-related"""
+    def _is_target_domain(self, domain: str, organization_name: str = "") -> bool:
+        """Check if domain is law enforcement/government-related"""
         if not domain:
             return False
         
-        # Check against known healthcare domains
-        for healthcare_domain in self.healthcare_domains:
-            if domain == healthcare_domain or domain.endswith('.' + healthcare_domain):
+        # Check against known target domains
+        for target_domain in self.target_domains:
+            if domain == target_domain or domain.endswith(target_domain):
                 return True
         
-        # Check for healthcare keywords in domain
-        healthcare_keywords = [
-            'health', 'hospital', 'medical', 'clinic', 'care', 'med',
-            'healthcare', 'healthsystem', 'medicine', 'physician'
+        # Check for law enforcement/government keywords in domain
+        target_keywords = [
+            'police', 'sheriff', 'law', 'enforcement', 'government', 'gov',
+            'dept', 'department', 'city', 'county', 'state', 'federal',
+            'pd', 'so', 'da', 'prosecutor', 'court', 'corrections',
+            'detention', 'jail', 'prison', 'probation', 'parole',
+            'security', 'public', 'safety', 'emergency', 'fire'
         ]
         
-        for keyword in healthcare_keywords:
+        for keyword in target_keywords:
             if keyword in domain:
                 return True
         
@@ -165,12 +174,14 @@ if __name__ == "__main__":
     verifier = EmailVerificationSystem()
     
     test_emails = [
-        ("john.smith@houstonmethodist.org", "Houston Methodist", True),
-        ("fake@example.com", "Test Hospital", False),
-        ("mail2@testhosp.com", "Test Hospital", False),
-        ("admin@clevelandclinic.org", "Cleveland Clinic", True),
-        ("dr.jones@regionalhealthcare.org", "Regional Healthcare", True),
-        ("noreply@hospital.com", "Some Hospital", False)
+        ("john.smith@police.gov", "City Police Department", True),
+        ("fake@example.com", "Test Police Dept", False),
+        ("mail2@testpd.com", "Test Police Dept", False),
+        ("admin@sheriff.gov", "County Sheriff Office", True),
+        ("officer.jones@citypolice.org", "City Police Department", True),
+        ("noreply@police.com", "Some Police Dept", False),
+        ("evidence@dea.gov", "DEA", True),
+        ("manager@property.county.gov", "County Property & Evidence", True)
     ]
     
     print("🔍 Email Verification Tests")

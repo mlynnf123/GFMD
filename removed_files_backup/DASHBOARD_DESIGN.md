@@ -1,4 +1,3 @@
-i
 # Dashboard Design for GFMD AI Swarm
 
 ## Recommended Tech Stack
