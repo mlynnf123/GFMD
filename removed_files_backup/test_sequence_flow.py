@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Set environment variables for testing
-os.environ['GROQ_API_KEY'] = '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'
+os.environ['GROQ_API_KEY'] = 'your_groq_api_key_here'
 os.environ['MONGODB_CONNECTION_STRING'] = 'mongodb+srv://solutions-account:GFMDgfmd2280%40%40@cluster0.hdejtab.mongodb.net/?appName=Cluster0'
 
 async def test_complete_sequence_flow():
