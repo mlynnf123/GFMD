@@ -122,29 +122,48 @@ class CompleteSequenceAutomation:
             
             results = {"processed": 0, "sent": 0, "errors": 0, "details": []}
             
-            for sequence in due_sequences:
-                try:
-                    result = await self._process_single_sequence(sequence, send_emails)
-                    results["processed"] += 1
-                    
-                    if result.get("success"):
-                        if result.get("action") == "sent":
-                            results["sent"] += 1
-                        elif result.get("action") == "completed":
-                            print(f"✅ Completed sequence for {sequence.get('contact_email')}")
-                    else:
+            # Process in smaller batches to avoid rate limits
+            batch_size = 5  # Process 5 emails at a time
+            for i in range(0, len(due_sequences), batch_size):
+                batch = due_sequences[i:i + batch_size]
+                
+                for sequence in batch:
+                    try:
+                        result = await self._process_single_sequence(sequence, send_emails)
+                        results["processed"] += 1
+                        
+                        if result.get("success"):
+                            if result.get("action") == "sent":
+                                results["sent"] += 1
+                            elif result.get("action") == "completed":
+                                print(f"✅ Completed sequence for {sequence.get('contact_email')}")
+                        else:
+                            results["errors"] += 1
+                            print(f"❌ Error: {result.get('error')}")
+                        
+                        results["details"].append({
+                            "contact_email": sequence.get("contact_email"),
+                            "step": sequence.get("current_step", 0) + 1,
+                            "result": result
+                        })
+                        
+                        # Add delay between each email to respect rate limits
+                        if send_emails:
+                            await asyncio.sleep(12)  # 5 emails per minute max
+                        
+                    except Exception as e:
                         results["errors"] += 1
-                        print(f"❌ Error: {result.get('error')}")
-                    
-                    results["details"].append({
-                        "contact_email": sequence.get("contact_email"),
-                        "step": sequence.get("current_step", 0) + 1,
-                        "result": result
-                    })
-                    
-                except Exception as e:
-                    results["errors"] += 1
-                    print(f"❌ Error processing sequence: {e}")
+                        print(f"❌ Error processing sequence: {e}")
+                        
+                        # If rate limit error, wait longer
+                        if "rate_limit" in str(e).lower():
+                            print("⏳ Rate limit hit, waiting 60 seconds...")
+                            await asyncio.sleep(60)
+                
+                # Pause between batches 
+                if i + batch_size < len(due_sequences):
+                    print(f"⏳ Processed batch {i//batch_size + 1}, waiting 30s before next batch...")
+                    await asyncio.sleep(30)
             
             if results["processed"] > 0:
                 print(f"📧 Processed {results['processed']} sequences, sent {results['sent']} emails")
@@ -261,7 +280,7 @@ class CompleteSequenceAutomation:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def add_daily_new_contacts(self, count: int = 20) -> dict:
+    async def add_daily_new_contacts(self, count: int = 10) -> dict:
         """Add new contacts daily from available contact pool"""
         try:
             print(f"\n📊 Adding {count} new contacts to sequences...")
@@ -384,7 +403,7 @@ class CompleteSequenceAutomation:
             print("⏰ Background scheduler started")
             print("   - Processing every hour")
             print("   - Special runs at 9 AM, 1 PM, 5 PM") 
-            print("   - Daily contact addition: Monday-Friday at 8 AM (20 new contacts)")
+            print("   - Daily contact addition: Monday-Friday at 8 AM (10 new contacts)")
             print("   - Email timing: Every 2 business days")
             
             while True:
@@ -422,7 +441,7 @@ class CompleteSequenceAutomation:
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(self.add_daily_new_contacts(count=20))
+            result = loop.run_until_complete(self.add_daily_new_contacts(count=10))
             loop.close()
             
             if result.get("added", 0) > 0:
@@ -467,7 +486,7 @@ async def main():
             
         elif command == "add_contacts":
             # Add daily contacts manually
-            count = int(sys.argv[2]) if len(sys.argv) > 2 else 20
+            count = int(sys.argv[2]) if len(sys.argv) > 2 else 10
             result = await automation.add_daily_new_contacts(count)
             print(f"Add contacts result: {result}")
             

@@ -28,7 +28,7 @@ class GroqBaseAgent:
         self,
         agent_id: str,
         role: AgentRole,
-        model: str = "openai/gpt-oss-120b",
+        model: str = "llama-3.3-70b-versatile",
         temperature: float = 0.7
     ):
         self.agent_id = agent_id

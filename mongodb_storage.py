@@ -24,7 +24,7 @@ class MongoDBStorage:
         Args:
             connection_string: MongoDB Atlas connection string
         """
-        self.connection_string = connection_string or os.environ.get('MONGODB_CONNECTION_STRING')
+        self.connection_string = connection_string or os.environ.get('MONGODB_URI') or os.environ.get('MONGODB_CONNECTION_STRING')
         
         if not self.connection_string:
             raise ValueError("MongoDB connection string required. Set MONGODB_CONNECTION_STRING environment variable.")

@@ -36,7 +36,11 @@ class GmailIntegration:
         self.service = None
         self.tracking_domain = tracking_domain or "gfmd.com"  # Replace with actual tracking domain
         self.tracking_base_url = f"https://{self.tracking_domain}/track"
-        self._authenticate()
+        try:
+            self._authenticate()
+        except Exception as e:
+            logger.warning(f"Gmail authentication failed: {e}")
+            self.service = None
     
     def _authenticate(self):
         """Authenticate with Gmail API using OAuth 2.0"""

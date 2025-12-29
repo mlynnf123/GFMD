@@ -243,14 +243,14 @@ solutions@gfmd.com
         # Convert line breaks to HTML
         html_content = content.replace('\n', '<br>\n')
         
-        # Create GFMD HTML signature with logo
+        # Create GFMD HTML signature without icons/logos
         html_signature = """
 <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; margin-top: 20px;">
     <div style="border-top: 1px solid #e0e0e0; padding-top: 15px;">
         <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
             <tr>
                 <td style="vertical-align: top; width: 80px; padding-right: 15px;">
-                    <img src="https://www.gfmd.com/logo.png" alt="GFMD Global Focus" style="width: 70px; height: auto; display: block;" />
+                    <img src="https://gfmd.com/wp-content/themes/gfmd/assets/images/cropped-gfmd-logo-blue-1024x690.png" alt="GFMD Global Focus" style="width: 60px; height: auto; display: block; max-width: 60px;" />
                 </td>
                 <td style="vertical-align: top;">
                     <div style="font-weight: bold; font-size: 16px; color: #2c3e9e; margin-bottom: 8px;">
@@ -263,10 +263,10 @@ solutions@gfmd.com
                         <a href="mailto:solutions@gfmd.com" style="color: #2c3e9e; text-decoration: none; font-size: 13px;">solutions@gfmd.com</a>
                     </div>
                     <div style="margin-bottom: 4px; font-size: 13px; color: #333;">
-                        📞 619-341-9058
+                        619-341-9058
                     </div>
                     <div style="font-size: 13px;">
-                        🌐 <a href="https://www.gfmd.com" style="color: #2c3e9e; text-decoration: none;">www.gfmd.com</a>
+                        <a href="https://www.gfmd.com" style="color: #2c3e9e; text-decoration: none;">www.gfmd.com</a>
                     </div>
                 </td>
             </tr>
@@ -279,7 +279,7 @@ solutions@gfmd.com
 <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #333;">
     {html_content}
     
-    <div style="margin-top: 20px;">
+    <div style="margin-top: 60px;">
         Best,
     </div>
     {html_signature}
