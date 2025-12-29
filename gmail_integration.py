@@ -36,11 +36,33 @@ class GmailIntegration:
         self.service = None
         self.tracking_domain = tracking_domain or "gfmd.com"  # Replace with actual tracking domain
         self.tracking_base_url = f"https://{self.tracking_domain}/track"
+        
+        # In production, create credential files from environment variables
+        self._setup_credentials_from_env()
+        
         try:
             self._authenticate()
         except Exception as e:
             logger.warning(f"Gmail authentication failed: {e}")
             self.service = None
+    
+    def _setup_credentials_from_env(self):
+        """Setup Gmail credential files from environment variables if they don't exist"""
+        try:
+            # Create credentials file if it doesn't exist and GMAIL_CREDENTIALS env var is set
+            if not os.path.exists(self.credentials_file) and os.environ.get('GMAIL_CREDENTIALS'):
+                logger.info("Creating Gmail credentials file from environment variable")
+                with open(self.credentials_file, 'w') as f:
+                    f.write(os.environ.get('GMAIL_CREDENTIALS'))
+            
+            # Create token file if it doesn't exist and GMAIL_TOKEN env var is set
+            if not os.path.exists(self.token_file) and os.environ.get('GMAIL_TOKEN'):
+                logger.info("Creating Gmail token file from environment variable")
+                with open(self.token_file, 'w') as f:
+                    f.write(os.environ.get('GMAIL_TOKEN'))
+                    
+        except Exception as e:
+            logger.warning(f"Failed to setup credentials from environment: {e}")
     
     def _authenticate(self):
         """Authenticate with Gmail API using OAuth 2.0"""

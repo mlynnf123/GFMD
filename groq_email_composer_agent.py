@@ -58,6 +58,12 @@ solutions@gfmd.com
 619-341-9058     www.gfmd.com
 ```
 
+**CRITICAL FORMATTING RULES**:
+- Put a line break (\\n) after "Hi [FirstName],"
+- Put line breaks between separate thoughts/sentences
+- Each paragraph should be separated by double line breaks (\\n\\n)
+- Never put everything in one long paragraph
+
 **About GFMD**:
 - Manufactures Narc Gone drug destruction products for law enforcement agencies
 - Target customers: Property & Evidence managers, police departments, sheriff's offices, federal agencies
@@ -79,6 +85,14 @@ Meranda Freiner
 solutions@gfmd.com
 619-341-9058     www.gfmd.com
 ```
+
+**JSON Format must include proper line breaks**:
+{
+  "subject": "Drug disposal costs at Austin PD",
+  "body": "Hi Sarah,\\n\\nI noticed Austin PD processes a significant volume of drug evidence. Many departments your size tell us incineration costs are eating into their budgets.\\n\\nOur Narc Gone system destroys drugs on-site for about 30% less than incineration. Might be worth a quick conversation?",
+  "personalization_notes": "Personalized for Austin PD size and drug evidence volume",
+  "first_name": "Sarah"
+}
 
 **RETURN FORMAT** - Must be valid JSON:
 {
@@ -240,8 +254,35 @@ solutions@gfmd.com
         else:
             content = text_body.strip()
         
-        # Convert line breaks to HTML
-        html_content = content.replace('\n', '<br>\n')
+        # First ensure proper line breaks after greeting and between paragraphs
+        lines = content.split('\n')
+        formatted_lines = []
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if line:
+                # Add the line
+                formatted_lines.append(line)
+                
+                # Add extra spacing after greeting line
+                if line.startswith('Hi ') and line.endswith(','):
+                    formatted_lines.append('')
+                
+                # Add spacing between paragraphs (if next line exists and isn't empty)
+                elif i < len(lines) - 1 and lines[i + 1].strip():
+                    # Check if this is end of a sentence and next line starts a new thought
+                    if (line.endswith('.') or line.endswith('?') or line.endswith('!')) and not lines[i + 1].strip().startswith('Our'):
+                        formatted_lines.append('')
+        
+        # Rejoin with line breaks
+        content = '\n'.join(formatted_lines)
+        
+        # Convert line breaks to HTML with proper paragraph spacing
+        html_content = content.replace('\n\n', '</p><p>').replace('\n', '<br>\n')
+        
+        # Wrap in paragraph tags if we have paragraph breaks
+        if '</p><p>' in html_content:
+            html_content = f'<p>{html_content}</p>'
         
         # Create GFMD HTML signature without icons/logos
         html_signature = """
