@@ -388,22 +388,22 @@ class CompleteSequenceAutomation:
             # Schedule processing every hour
             schedule.every().hour.do(self._scheduled_processing)
             
-            # Schedule at specific times for better control
-            schedule.every().day.at("09:00").do(self._scheduled_processing)
-            schedule.every().day.at("13:00").do(self._scheduled_processing)
-            schedule.every().day.at("17:00").do(self._scheduled_processing)
+            # Schedule at specific times for better control (adjusted for CST = UTC-6)
+            schedule.every().day.at("15:00").do(self._scheduled_processing)  # 9 AM CST
+            schedule.every().day.at("19:00").do(self._scheduled_processing)  # 1 PM CST
+            schedule.every().day.at("23:00").do(self._scheduled_processing)  # 5 PM CST
             
-            # Schedule daily contact addition (every business day at 8 AM)
-            schedule.every().monday.at("08:00").do(self._add_daily_contacts)
-            schedule.every().tuesday.at("08:00").do(self._add_daily_contacts)
-            schedule.every().wednesday.at("08:00").do(self._add_daily_contacts)
-            schedule.every().thursday.at("08:00").do(self._add_daily_contacts)
-            schedule.every().friday.at("08:00").do(self._add_daily_contacts)
+            # Schedule daily contact addition (every business day at 8 AM CST = 14:00 UTC)
+            schedule.every().monday.at("14:00").do(self._add_daily_contacts)
+            schedule.every().tuesday.at("14:00").do(self._add_daily_contacts)
+            schedule.every().wednesday.at("14:00").do(self._add_daily_contacts)
+            schedule.every().thursday.at("14:00").do(self._add_daily_contacts)
+            schedule.every().friday.at("14:00").do(self._add_daily_contacts)
             
             print("⏰ Background scheduler started")
             print("   - Processing every hour")
-            print("   - Special runs at 9 AM, 1 PM, 5 PM") 
-            print("   - Daily contact addition: Monday-Friday at 8 AM (10 new contacts)")
+            print("   - Special runs at 9 AM, 1 PM, 5 PM CST") 
+            print("   - Daily contact addition: Monday-Friday at 8 AM CST (10 new contacts)")
             print("   - Email timing: Every 2 business days")
             
             while True:

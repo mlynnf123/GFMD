@@ -26,4 +26,6 @@ python3 run_campaign.py 5
 python3 run_campaign.py 50 send
 ```
 
-[Rest of the file remains unchanged]
+## Deployment Notes
+
+- No we are supposed to be using the railway CLI not github to deploy

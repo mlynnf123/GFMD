@@ -17,7 +17,7 @@ class GroqEmailComposerAgent(GroqBaseAgent):
         super().__init__(
             agent_id=agent_id,
             role=AgentRole.EMAIL_COMPOSER,
-            temperature=0.7  # Moderate temperature for natural writing
+            temperature=0.85  # Higher temperature for more creative, personalized writing
         )
         # Initialize RAG system for dynamic knowledge retrieval
         try:
@@ -29,7 +29,9 @@ class GroqEmailComposerAgent(GroqBaseAgent):
     def get_system_prompt(self) -> str:
         return """You are an Email Composer Agent for GFMD, a B2B sales professional writing to law enforcement Property & Evidence managers.
 
-**Your Mission**: Write personalized, professional emails about Narc Gone drug destruction products that sound like they're from a real sales rep - NOT from AI.
+**Your Mission**: Write HIGHLY PERSONALIZED, professional emails about Narc Gone drug destruction products that sound like they're from a real sales rep who has researched the specific agency - NOT from AI.
+
+**PERSONALIZATION IS CRITICAL**: You MUST reference specific details about their agency, location, or situation. Never send generic emails.
 
 **CRITICAL RULES - MUST FOLLOW**:
 
@@ -71,13 +73,11 @@ solutions@gfmd.com
 
 **Example Good Email**:
 ```
-Subject: Drug disposal costs at Austin PD
+Subject: Drug disposal costs at Robinson PD
 
-Hi Sarah,
+Hi Kathryn,
 
-I noticed Austin PD processes a significant volume of drug evidence. Many departments your size tell us incineration costs are eating into their budgets.
-
-Our Narc Gone system destroys drugs on-site for about 30% less than incineration. Might be worth a quick conversation?
+I noticed Robinson PD handles a large volume of drug evidence. Many departments of similar size tell us incineration is a big budget drain. Our Narc Gone system destroys the drugs on-site and can cut those costs by about a third while staying DEA-compliant. Are you open to a quick call to see if it could work for you?
 
 Best,
 
@@ -88,10 +88,10 @@ solutions@gfmd.com
 
 **JSON Format must include proper line breaks**:
 {
-  "subject": "Drug disposal costs at Austin PD",
-  "body": "Hi Sarah,\\n\\nI noticed Austin PD processes a significant volume of drug evidence. Many departments your size tell us incineration costs are eating into their budgets.\\n\\nOur Narc Gone system destroys drugs on-site for about 30% less than incineration. Might be worth a quick conversation?",
-  "personalization_notes": "Personalized for Austin PD size and drug evidence volume",
-  "first_name": "Sarah"
+  "subject": "Drug disposal costs at Robinson PD",
+  "body": "Hi Kathryn,\\n\\nI noticed Robinson PD handles a large volume of drug evidence. Many departments of similar size tell us incineration is a big budget drain.\\n\\nOur Narc Gone system destroys the drugs on-site and can cut those costs by about a third while staying DEA-compliant. Are you open to a quick call to see if it could work for you?",
+  "personalization_notes": "Referenced Robinson PD's drug evidence volume and budget concerns",
+  "first_name": "Kathryn"
 }
 
 **RETURN FORMAT** - Must be valid JSON:
@@ -161,7 +161,7 @@ solutions@gfmd.com
                 "context": {
                     "rag_knowledge": rag_context if rag_context else "Use general GFMD knowledge from system prompt"
                 },
-                "instruction": "Write a SHORT, human-sounding B2B sales email following ALL the rules above. Use the provided context to make the email more relevant and credible. Return valid JSON."
+                "instruction": "Write a SHORT, human-sounding B2B sales email that is HIGHLY PERSONALIZED to this specific prospect. MUST reference their agency name, location, or specific pain points. Use the provided context to make it relevant. Never be generic. Return valid JSON."
             }
 
             # Call Groq AI
