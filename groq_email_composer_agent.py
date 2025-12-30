@@ -113,6 +113,12 @@ solutions@gfmd.com
 
             # Extract key info
             contact_name = prospect_data.get("contact_name", "")
+            
+            # If no contact name, try to extract from email
+            if not contact_name or contact_name in ['N/A', '', None]:
+                email = prospect_data.get("email", "")
+                contact_name = self._extract_name_from_email(email)
+            
             company_name = self._clean_company_name(prospect_data.get("company_name", ""))
             location = prospect_data.get("location", "")
             title = prospect_data.get("title", "")
@@ -208,7 +214,7 @@ solutions@gfmd.com
 
     def _extract_first_name(self, full_name: str) -> str:
         """Extract first name from full name"""
-        if not full_name:
+        if not full_name or full_name in ['N/A', '', None]:
             return "there"
 
         # Remove titles
@@ -221,6 +227,33 @@ solutions@gfmd.com
                 return clean_part
 
         return name_parts[0] if name_parts else "there"
+
+    def _extract_name_from_email(self, email: str) -> str:
+        """Extract potential first name from email address"""
+        if not email:
+            return ""
+        
+        try:
+            # Get the part before @
+            username = email.split('@')[0].lower()
+            
+            # Common patterns: first.last, firstlast, first_last, flast
+            parts = username.replace('.', ' ').replace('_', ' ').replace('-', ' ').split()
+            
+            if parts:
+                # Take the first part and capitalize
+                first_part = parts[0]
+                # Remove numbers and common prefixes
+                first_part = ''.join(c for c in first_part if c.isalpha())
+                
+                # Skip common non-name parts
+                skip_words = ['admin', 'info', 'contact', 'support', 'office', 'dept', 'chief', 'director']
+                if first_part not in skip_words and len(first_part) > 1:
+                    return first_part.capitalize()
+        except:
+            pass
+        
+        return ""
 
     def _clean_company_name(self, company_name: str) -> str:
         """Clean company name - remove (FKA...) and (AKA...) parts"""

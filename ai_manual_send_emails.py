@@ -95,19 +95,48 @@ class AIManualEmailSender:
                 'specific_context': 'government agency'
             }
 
+    def extract_name_from_email(self, email):
+        """Extract potential first name from email address"""
+        if not email:
+            return ""
+        
+        # Get the part before @
+        username = email.split('@')[0].lower()
+        
+        # Common patterns: first.last, firstlast, first_last, flast
+        parts = username.replace('.', ' ').replace('_', ' ').replace('-', ' ').split()
+        
+        if parts:
+            # Take the first part and capitalize
+            first_part = parts[0]
+            # Remove numbers and common prefixes
+            first_part = ''.join(c for c in first_part if c.isalpha())
+            
+            # Skip common non-name parts
+            skip_words = ['admin', 'info', 'contact', 'support', 'office', 'dept', 'chief', 'director']
+            if first_part not in skip_words and len(first_part) > 1:
+                return first_part.capitalize()
+        
+        return ""
+
     async def create_ai_personalized_email(self, contact):
         """Use AI composer to create highly personalized email"""
         
         # Analyze contact for industry-specific insights
         industry_analysis = self.analyze_contact_industry(contact)
         
+        # Extract name from email if contact_name is missing
+        contact_name = contact.get('contact_name', '')
+        if not contact_name or contact_name in ['N/A', '', None]:
+            contact_name = self.extract_name_from_email(contact.get('email', ''))
+        
         # Prepare prospect data
         prospect_data = {
-            'contact_name': contact.get('contact_name', ''),
+            'contact_name': contact_name,
             'email': contact.get('email', ''),
             'company_name': contact.get('company_name', ''),
             'location': contact.get('location', ''),
-            'title': contact.get('title', 'Decision Maker'),
+            'title': contact.get('title', ''),  # Remove 'Decision Maker' default
             'facility_type': industry_analysis['specific_context']
         }
         
@@ -151,8 +180,11 @@ class AIManualEmailSender:
         company_name = contact.get('company_name', 'your organization')
         contact_name = contact.get('contact_name', '')
         
-        # Extract first name
+        # Extract first name - use email extraction if contact_name is missing
         first_name = "there"
+        if not contact_name or contact_name in ['N/A', '', None]:
+            contact_name = self.extract_name_from_email(email)
+        
         if contact_name:
             name_parts = contact_name.split()
             for part in name_parts:
