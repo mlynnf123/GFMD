@@ -39,6 +39,13 @@ class GroqReplyAgent(GroqBaseAgent):
             role=AgentRole.EMAIL_COMPOSER,
             temperature=0.8  # Higher temperature for natural conversation
         )
+        # Initialize RAG system for competitive intelligence
+        try:
+            from vector_rag_system import VectorRAGSystem
+            self.rag_system = VectorRAGSystem()
+        except Exception as e:
+            print(f"Warning: RAG system not available for replies: {e}")
+            self.rag_system = None
     
     def get_system_prompt(self) -> str:
         return """You are a Professional Email Reply Agent for GFMD (Global Focus Marketing & Distribution), responding to replies about Narc Gone drug destruction products.
@@ -62,9 +69,16 @@ class GroqReplyAgent(GroqBaseAgent):
 - Be accommodating and helpful
 
 **QUESTIONS** (asking for details, pricing, specs):
-- Answer briefly and professionally  
+- Answer briefly and professionally using provided knowledge
 - Offer to provide more detailed information
 - Suggest a call for comprehensive discussion
+
+**COMPETITIVE OBJECTIONS** (we use incinerator, we have vendor, happy with current solution):
+- Acknowledge their current solution respectfully
+- Use provided competitive knowledge to highlight specific advantages
+- Focus on measurable benefits (cost savings, efficiency, compliance)
+- Position as potential improvement, not replacement criticism
+- Keep door open for future consideration
 
 **TIMING REQUESTS** (call me later, busy now):
 - Acknowledge their timing preferences
@@ -123,6 +137,21 @@ solutions@gfmd.com
 619-341-9058     www.gfmd.com
 ```
 
+If they say "We use incinerator for drug disposal":
+```
+Hi Brandi,
+
+I understand you currently use incineration. Many departments we work with initially used incinerators but found significant advantages with our on-site system - typically 30-60% cost reduction, no transportation requirements, and faster processing times.
+
+If budget optimization or operational efficiency ever becomes a priority, I'd be happy to show you a quick comparison.
+
+Best,
+
+Meranda Freiner
+solutions@gfmd.com
+619-341-9058     www.gfmd.com
+```
+
 **RETURN FORMAT** - Must be valid JSON:
 {
   "subject": "Re: [their subject]",
@@ -130,6 +159,76 @@ solutions@gfmd.com
   "sentiment_analysis": "positive/interested/question/neutral",
   "suggested_next_action": "schedule_call/send_info/follow_up_later"
 }"""
+
+    def _analyze_competitive_objection(self, reply_content: str) -> Dict[str, Any]:
+        """Analyze reply for competitive objections and get relevant knowledge"""
+        content_lower = reply_content.lower()
+        
+        # Detect competitive alternatives mentioned
+        competitors = {
+            "incineration": ["incinerator", "incineration", "burn", "burning"],
+            "existing_vendor": ["current vendor", "existing supplier", "already have", "current solution"],
+            "take_back_events": ["take back", "takeback", "collection events", "disposal events"],
+            "alternative_methods": ["other method", "different way", "another solution"]
+        }
+        
+        detected_competitors = []
+        for competitor, keywords in competitors.items():
+            if any(keyword in content_lower for keyword in keywords):
+                detected_competitors.append(competitor)
+        
+        return {
+            "has_competitive_objection": len(detected_competitors) > 0,
+            "competitors_mentioned": detected_competitors,
+            "requires_competitive_response": len(detected_competitors) > 0
+        }
+    
+    def _get_competitive_knowledge(self, competitors_mentioned: List[str], reply_content: str) -> str:
+        """Get relevant competitive knowledge from RAG system"""
+        if not self.rag_system or not competitors_mentioned:
+            return ""
+        
+        try:
+            # Build search query based on mentioned competitors
+            search_queries = []
+            for competitor in competitors_mentioned:
+                if competitor == "incineration":
+                    search_queries.append("incineration costs vs narc gone benefits on-site disposal")
+                elif competitor == "existing_vendor":
+                    search_queries.append("narc gone advantages benefits compared other vendors")
+                elif competitor == "take_back_events":
+                    search_queries.append("take back events vs on-site destruction efficiency")
+            
+            # Get relevant knowledge
+            all_knowledge = []
+            for query in search_queries[:2]:  # Limit to top 2 queries
+                results = self.rag_system.vector_search(query, limit=3)
+                for result in results:
+                    content = result.get("content", "")
+                    if content and len(content) > 100:
+                        all_knowledge.append(content[:400])  # Limit content length
+            
+            # Also get personalized insights for competitive positioning
+            insights = self.rag_system.get_personalized_insights(
+                agency_type="police",
+                pain_points=[f"{comp} comparison" for comp in competitors_mentioned],
+                location="general"
+            )
+            
+            # Combine knowledge sources
+            knowledge_context = ""
+            if all_knowledge:
+                knowledge_context += "COMPETITIVE KNOWLEDGE:\n" + "\n".join(all_knowledge[:2])
+            
+            for key, value in insights.items():
+                if value and "solution" in key:
+                    knowledge_context += f"\n{key.upper()}: {value[:300]}"
+            
+            return knowledge_context[:1200]  # Limit total context length
+            
+        except Exception as e:
+            print(f"Warning: Could not retrieve competitive knowledge: {e}")
+            return ""
 
     async def execute(self, task: Dict[str, Any]) -> Dict[str, Any]:
         """Generate a reply to an incoming email"""
@@ -148,7 +247,18 @@ solutions@gfmd.com
             if not first_name and prospect_data.get("email"):
                 first_name = self._extract_name_from_email(prospect_data.get("email"))
             
-            # Build reply generation prompt
+            # Analyze for competitive objections
+            competitive_analysis = self._analyze_competitive_objection(reply_content)
+            
+            # Get competitive knowledge if needed
+            competitive_knowledge = ""
+            if competitive_analysis["requires_competitive_response"]:
+                competitive_knowledge = self._get_competitive_knowledge(
+                    competitive_analysis["competitors_mentioned"], 
+                    reply_content
+                )
+            
+            # Build enhanced reply generation prompt
             reply_prompt = {
                 "task": "generate_reply",
                 "context": {
@@ -157,16 +267,18 @@ solutions@gfmd.com
                     "sender_name": sender_name,
                     "first_name": first_name,
                     "company_name": company_name,
-                    "prospect_data": prospect_data
+                    "prospect_data": prospect_data,
+                    "competitive_analysis": competitive_analysis,
+                    "competitive_knowledge": competitive_knowledge
                 },
-                "instruction": "Generate a professional, helpful email reply that addresses their response and suggests an appropriate next step. Must be conversational and natural, not salesy. Return valid JSON."
+                "instruction": "Generate a professional email reply that addresses their specific response. If they mentioned competitive alternatives, use the provided competitive knowledge to highlight specific advantages professionally. Focus on measurable benefits and positioning our solution as a potential improvement. Return valid JSON."
             }
             
             # Generate reply using AI
             result = await self.think(reply_prompt)
             
             if "error" in result:
-                return self._create_fallback_reply(reply_content, first_name, original_subject)
+                return self._create_fallback_reply(reply_content, first_name, original_subject, competitive_analysis)
             
             # Parse AI response
             if "response" in result and isinstance(result["response"], str):
@@ -191,14 +303,15 @@ solutions@gfmd.com
                     pass
             
             # Fallback if parsing fails
-            return self._create_fallback_reply(reply_content, first_name, original_subject)
+            return self._create_fallback_reply(reply_content, first_name, original_subject, competitive_analysis)
             
         except Exception as e:
             logger.error(f"Reply generation failed: {e}")
             return self._create_fallback_reply(
                 task.get("reply_content", ""), 
                 "there", 
-                task.get("original_email", {}).get("subject", "")
+                task.get("original_email", {}).get("subject", ""),
+                competitive_analysis
             )
     
     def _extract_first_name(self, full_name: str) -> str:
@@ -237,15 +350,65 @@ solutions@gfmd.com
         
         return ""
     
-    def _create_fallback_reply(self, reply_content: str, first_name: str, original_subject: str) -> Dict[str, Any]:
-        """Create a simple fallback reply"""
+    def _create_fallback_reply(self, reply_content: str, first_name: str, original_subject: str, competitive_analysis: Dict = None) -> Dict[str, Any]:
+        """Create an intelligent fallback reply with competitive handling"""
         greeting = f"Hi {first_name}," if first_name else "Hi there,"
         
-        # Simple sentiment analysis
-        positive_words = ["interested", "yes", "call", "schedule", "more info"]
-        is_positive = any(word in reply_content.lower() for word in positive_words)
+        # Check for competitive objections
+        content_lower = reply_content.lower()
         
-        if is_positive:
+        # Handle specific competitive objections
+        if competitive_analysis and competitive_analysis.get("has_competitive_objection"):
+            competitors = competitive_analysis.get("competitors_mentioned", [])
+            
+            if "incineration" in competitors:
+                body = f"""{greeting}
+
+I understand you currently use incineration for disposal. Many departments we work with initially used incinerators but found our on-site Narc Gone system offers significant advantages - typically 30-60% cost savings, no transportation requirements, and faster processing times.
+
+If budget optimization or operational efficiency ever becomes a priority, I'd be happy to show you a quick comparison of processes and costs.
+
+Best,
+
+Meranda Freiner
+solutions@gfmd.com
+619-341-9058     www.gfmd.com"""
+                sentiment = "competitive_objection"
+                action = "follow_up_later"
+                
+            elif "existing_vendor" in competitors:
+                body = f"""{greeting}
+
+I understand you have an existing solution. Many agencies we work with have found that comparing options periodically helps ensure they're getting the best value and efficiency.
+
+If you're ever interested in seeing how our process compares to your current approach, I'd be happy to provide a brief overview.
+
+Best,
+
+Meranda Freiner
+solutions@gfmd.com
+619-341-9058     www.gfmd.com"""
+                sentiment = "competitive_objection"
+                action = "follow_up_later"
+                
+            else:
+                # Generic competitive response
+                body = f"""{greeting}
+
+I understand you have an established process. Our Narc Gone system has helped many departments improve their operations through cost savings and increased efficiency.
+
+If you're ever interested in exploring alternatives, I'd be happy to provide information for future reference.
+
+Best,
+
+Meranda Freiner
+solutions@gfmd.com
+619-341-9058     www.gfmd.com"""
+                sentiment = "competitive_objection"
+                action = "follow_up_later"
+        
+        # Handle positive responses
+        elif any(word in content_lower for word in ["interested", "yes", "call", "schedule", "more info"]):
             body = f"""{greeting}
 
 Thank you for your interest! I'd be happy to discuss how our Narc Gone system could help your department reduce disposal costs and ensure compliance.
@@ -259,6 +422,24 @@ solutions@gfmd.com
 619-341-9058     www.gfmd.com"""
             sentiment = "interested"
             action = "schedule_call"
+            
+        # Handle questions
+        elif any(word in content_lower for word in ["how", "what", "cost", "price", "when", "where"]):
+            body = f"""{greeting}
+
+Great question! I'd be happy to provide you with detailed information about our Narc Gone system and how it could benefit your department.
+
+Could we schedule a brief call to discuss your specific needs and answer any questions you might have?
+
+Best,
+
+Meranda Freiner
+solutions@gfmd.com
+619-341-9058     www.gfmd.com"""
+            sentiment = "question"
+            action = "schedule_call"
+            
+        # Generic neutral response
         else:
             body = f"""{greeting}
 
