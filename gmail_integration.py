@@ -449,6 +449,22 @@ class GmailIntegration:
             
             # Check if this is actually a reply to our email
             if reply_data['in_reply_to'] or 'Re:' in (reply_data['subject'] or ''):
+                # Extract sender email and name for AI processing
+                from_field = reply_data.get('from', '')
+                if '<' in from_field and '>' in from_field:
+                    # Format: "Name <email@domain.com>"
+                    name_part = from_field.split('<')[0].strip().strip('"')
+                    email_part = from_field.split('<')[1].split('>')[0].strip()
+                    reply_data['from_email'] = email_part
+                    reply_data['sender_name'] = name_part
+                else:
+                    # Just email address
+                    reply_data['from_email'] = from_field
+                    reply_data['sender_name'] = ''
+                
+                # Clean up the content for AI processing
+                reply_data['content'] = body_text or ''
+                
                 return reply_data
             
             return None

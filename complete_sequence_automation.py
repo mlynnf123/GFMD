@@ -43,6 +43,14 @@ class CompleteSequenceAutomation:
         self.gmail = GmailIntegration()
         self.business_day_calc = BusinessDayCalculator()
         
+        # Initialize auto-reply system
+        try:
+            from ai_auto_reply_system import AIAutoReplySystem
+            self.auto_reply_system = AIAutoReplySystem()
+        except ImportError:
+            self.auto_reply_system = None
+            print("⚠️ Auto-reply system not available")
+        
         print("✅ All components initialized successfully")
         print(f"📧 Gmail: {self.gmail.service is not None}")
         print(f"🗄️ MongoDB: Connected to {self.storage.db.name}")
@@ -400,10 +408,14 @@ class CompleteSequenceAutomation:
             schedule.every().thursday.at("14:00").do(self._add_daily_contacts)
             schedule.every().friday.at("14:00").do(self._add_daily_contacts)
             
+            # Add auto-reply monitoring every 2 hours 
+            schedule.every(2).hours.do(self._check_auto_replies)
+            
             print("⏰ Background scheduler started")
             print("   - Processing every hour")
             print("   - Special runs at 9 AM, 1 PM, 5 PM CST") 
             print("   - Daily contact addition: Monday-Friday at 8 AM CST (10 new contacts)")
+            print("   - Auto-reply monitoring: Every 2 hours")
             print("   - Email timing: Every 2 business days")
             
             while True:
@@ -451,6 +463,27 @@ class CompleteSequenceAutomation:
                 
         except Exception as e:
             print(f"❌ Daily contact addition error: {e}")
+    
+    def _check_auto_replies(self):
+        """Scheduled auto-reply checking function"""
+        print(f"\n🤖 {datetime.now().strftime('%Y-%m-%d %H:%M')} - Checking for email replies...")
+        
+        if self.auto_reply_system:
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                results = loop.run_until_complete(self.auto_reply_system.run_single_check())
+                loop.close()
+                
+                if results:
+                    print(f"✅ Auto-reply run: Sent {len(results)} intelligent replies")
+                else:
+                    print("📭 Auto-reply run: No new replies to process")
+                    
+            except Exception as e:
+                print(f"❌ Auto-reply check error: {e}")
+        else:
+            print("⚠️ Auto-reply system not available")
 
 async def main():
     """Main function for testing and running"""
