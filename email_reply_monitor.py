@@ -39,7 +39,7 @@ class EmailReplyMonitor:
         'blocked', 'report spam', 'unsolicited',
         
         # Bounce-related keywords
-        'mail not delivered', 'delivery failed', 'undeliverable', 
+        'mail not delivered', 'delivery failed', 'failed to deliver', 'undeliverable', 
         'mailbox full', 'user unknown', 'invalid recipient',
         'address not found', 'does not exist', 'bounce', 'returned mail',
         

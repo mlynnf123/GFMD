@@ -493,7 +493,8 @@ class AIAutoReplySystem:
         # Negative indicators  
         negative_words = [
             "not interested", "no thanks", "remove", "unsubscribe", 
-            "stop", "not a fit", "pass", "no need"
+            "stop", "not a fit", "pass", "no need", "mail not delivered", 
+            "failed to deliver"
         ]
         
         # Question indicators
@@ -559,7 +560,35 @@ class AIAutoReplySystem:
             print(f"\n📨 Processing reply from: {sender_email}")
             print(f"💭 Content preview: {reply_content[:100]}...")
             
-            # Analyze sentiment
+            # Check if email is already on suppression list
+            from email_reply_monitor import EmailReplyMonitor
+            monitor = EmailReplyMonitor()
+            
+            if monitor.check_suppression_status(sender_email):
+                print(f"🚫 Email {sender_email} is already on suppression list - skipping auto-reply")
+                self.replied_message_ids.add(message_id)
+                return None
+            
+            # Analyze email for suppression triggers
+            content_analysis = monitor.analyze_email_content(reply_content, original_subject)
+            if content_analysis['should_suppress']:
+                print(f"🚫 Suppression keywords detected: {content_analysis['keywords_found']}")
+                print(f"   Reason: {content_analysis['suppression_reason']}")
+                
+                # Add to suppression list
+                source_data = {
+                    'message_id': message_id,
+                    'subject': original_subject,
+                    'analysis': content_analysis,
+                    'source': 'auto_reply_system'
+                }
+                monitor.add_to_suppression_list(sender_email, content_analysis['suppression_reason'], source_data)
+                
+                # Skip auto-reply
+                self.replied_message_ids.add(message_id)
+                return None
+            
+            # Analyze sentiment (backup check)
             sentiment_analysis = self.analyze_reply_sentiment(reply_content)
             print(f"🎯 Sentiment: {sentiment_analysis['sentiment']}")
             
