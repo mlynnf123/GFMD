@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 
 // MongoDB connection - using same credentials as Railway deployment
 const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || 
@@ -54,13 +54,21 @@ export async function GET() {
       .find({})
       .sort({ updated_at: -1 })
       .limit(10)
-      .toArray() as SequenceData[];
+      .toArray() as unknown as SequenceData[];
     
     // Get contact details for recent sequences
     const contactIds = recentSequences.map(seq => seq.contact_id);
+    const objectIds = contactIds.map(id => {
+      try {
+        return new ObjectId(id);
+      } catch {
+        return null;
+      }
+    }).filter(id => id !== null) as ObjectId[];
+    
     const contacts = await contactsCollection
-      .find({ _id: { $in: contactIds.map(id => ({ $oid: id })) } })
-      .toArray() as ContactData[];
+      .find({ _id: { $in: objectIds } })
+      .toArray() as unknown as ContactData[];
     
     // Create contact lookup map
     const contactMap = new Map();
@@ -113,13 +121,15 @@ export async function GET() {
         Math.floor((Date.now() - new Date(lastEmail.sent_at).getTime()) / (1000 * 60 * 60 * 24)) : null;
       
       return {
-        name: contact.name || 'Unknown',
+        name: contact.name || sequence.contact_email.split('@')[0],
         organization: contact.organization || 'Unknown',
         stage: getStageFromStep(sequence.current_step),
         lastContact: lastEmail ? `${daysSinceLastEmail} days ago` : 'Never',
         daysUnanswered: sequence.status === 'active' ? daysSinceLastEmail : null,
         status: sequence.status === 'replied' ? 'Engaged' : 
-                sequence.status === 'completed' ? 'Customer' : 'Waiting'
+                sequence.status === 'completed' ? 'Customer' : 'Waiting',
+        contactEmail: sequence.contact_email,
+        contactId: sequence.contact_id
       };
     });
     

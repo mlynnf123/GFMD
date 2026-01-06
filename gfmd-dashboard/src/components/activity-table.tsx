@@ -6,56 +6,72 @@ import type { DashboardData } from "./dashboard";
 
 interface Props {
   data: DashboardData;
+  onContactClick?: (contactEmail: string, contactId?: string) => void;
 }
 
 const statusColors = {
-  Engaged: 'bg-blue-500',
-  Waiting: 'bg-gray-400',
-  Customer: 'bg-slate-600',
+  Engaged: '#4e2780',
+  Waiting: '#efebe2', 
+  Customer: '#272030',
 };
 
-export function ActivityTable({ data }: Props) {
+export function ActivityTable({ data, onContactClick }: Props) {
   return (
-    <Card className="border-gray-200">
+    <Card style={{borderColor: '#efebe2', backgroundColor: '#ffffff'}}>
       <CardHeader>
-        <CardTitle className="text-lg font-normal text-gray-900">
+        <CardTitle className="text-lg font-normal" style={{color: '#272030'}}>
           Recent Lead Activity
         </CardTitle>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
-            <TableRow className="border-gray-200">
-              <TableHead className="font-normal text-gray-600">Name</TableHead>
-              <TableHead className="font-normal text-gray-600">Organization</TableHead>
-              <TableHead className="font-normal text-gray-600">Stage</TableHead>
-              <TableHead className="font-normal text-gray-600">Last Contact</TableHead>
-              <TableHead className="font-normal text-gray-600">Days Unanswered</TableHead>
-              <TableHead className="font-normal text-gray-600">Status</TableHead>
+            <TableRow style={{borderColor: '#efebe2'}}>
+              <TableHead className="font-light" style={{color: '#272030'}}>Name</TableHead>
+              <TableHead className="font-light" style={{color: '#272030'}}>Organization</TableHead>
+              <TableHead className="font-light" style={{color: '#272030'}}>Stage</TableHead>
+              <TableHead className="font-light" style={{color: '#272030'}}>Last Contact</TableHead>
+              <TableHead className="font-light" style={{color: '#272030'}}>Days Unanswered</TableHead>
+              <TableHead className="font-light" style={{color: '#272030'}}>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.leadActivity.map((lead, index) => (
-              <TableRow key={index} className="border-gray-200 hover:bg-gray-50">
-                <TableCell className="font-normal text-gray-900">
-                  {lead.name}
+              <TableRow 
+                key={index} 
+                style={{borderColor: '#efebe2'}} 
+                className={`${onContactClick ? 'cursor-pointer hover:opacity-70' : 'hover:bg-white'}`}
+                onClick={() => onContactClick && onContactClick(lead.contactEmail || lead.name, lead.contactId)}
+              >
+                <TableCell className="font-normal" style={{color: '#272030'}}>
+                  <div className="flex items-center">
+                    {lead.name}
+                    {onContactClick && (
+                      <span className="ml-2 text-xs font-light" style={{color: '#4e2780'}}>
+                        View emails →
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
-                <TableCell className="text-gray-600">
+                <TableCell className="font-light" style={{color: '#272030'}}>
                   {lead.organization}
                 </TableCell>
-                <TableCell className="text-gray-600">
+                <TableCell className="font-light" style={{color: '#272030'}}>
                   {lead.stage}
                 </TableCell>
-                <TableCell className="text-gray-600">
+                <TableCell className="font-light" style={{color: '#272030'}}>
                   {lead.lastContact}
                 </TableCell>
-                <TableCell className="text-gray-600">
+                <TableCell className="font-light" style={{color: '#272030'}}>
                   {lead.daysUnanswered ?? 'N/A'}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center">
-                    <span className={`h-2 w-2 rounded-full ${statusColors[lead.status]} mr-2`}></span>
-                    <span className="text-gray-600 font-normal">
+                    <span 
+                      className="h-2 w-2 rounded-full mr-2"
+                      style={{backgroundColor: statusColors[lead.status], border: lead.status === 'Waiting' ? '1px solid #272030' : 'none'}}
+                    ></span>
+                    <span className="font-light" style={{color: '#272030'}}>
                       {lead.status}
                     </span>
                   </div>
