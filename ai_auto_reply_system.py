@@ -480,6 +480,31 @@ class AIAutoReplySystem:
         
         logger.info("✅ AI Auto-Reply System initialized")
     
+    def _extract_original_recipient_from_bounce(self, bounce_content: str, subject: str) -> Optional[str]:
+        """Extract the original recipient email from bounce message content"""
+        import re
+        
+        # Common patterns in bounce messages
+        patterns = [
+            r"Your message wasn't delivered to ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})",
+            r"to ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}) because",
+            r"delivery to ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}) failed",
+            r"<([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>",
+            r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s+(?:address not found|user unknown)"
+        ]
+        
+        # Try to extract from content first
+        full_text = f"{bounce_content} {subject}"
+        for pattern in patterns:
+            match = re.search(pattern, full_text, re.IGNORECASE)
+            if match:
+                email = match.group(1)
+                # Validate email format
+                if '@' in email and '.' in email.split('@')[1]:
+                    return email.lower()
+        
+        return None
+
     def analyze_reply_sentiment(self, content: str) -> Dict[str, Any]:
         """Analyze the sentiment and intent of a reply"""
         content_lower = content.lower()
@@ -559,6 +584,46 @@ class AIAutoReplySystem:
             
             print(f"\n📨 Processing reply from: {sender_email}")
             print(f"💭 Content preview: {reply_content[:100]}...")
+            
+            # CRITICAL: Check for bounce messages first (before any other processing)
+            bounce_senders = ['postmaster', 'mailer-daemon', 'mail-daemon', 'delivery-daemon', 'no-reply']
+            bounce_keywords = ['address not found', 'delivery failed', 'mail not delivered', 'undeliverable', 'user unknown', 'mailbox full', 'returned mail']
+            
+            # Check if sender is a system daemon
+            sender_lower = sender_email.lower()
+            is_system_bounce = any(daemon in sender_lower for daemon in bounce_senders)
+            
+            # Check if content contains bounce indicators
+            content_lower = f"{reply_content} {original_subject}".lower()
+            has_bounce_keywords = any(keyword in content_lower for keyword in bounce_keywords)
+            
+            if is_system_bounce or has_bounce_keywords:
+                print(f"🚫 BOUNCE MESSAGE DETECTED from {sender_email}")
+                print(f"   System sender: {is_system_bounce}")
+                print(f"   Bounce keywords: {has_bounce_keywords}")
+                
+                # Extract original recipient from bounce message
+                original_recipient = self._extract_original_recipient_from_bounce(reply_content, original_subject)
+                if original_recipient:
+                    print(f"   Original recipient: {original_recipient}")
+                    
+                    # Add original recipient to suppression list
+                    from email_reply_monitor import EmailReplyMonitor
+                    monitor = EmailReplyMonitor()
+                    monitor.add_to_suppression_list(
+                        original_recipient, 
+                        'Email delivery failed', 
+                        {
+                            'bounce_sender': sender_email,
+                            'bounce_content': reply_content[:200],
+                            'source': 'bounce_detection'
+                        }
+                    )
+                    print(f"   ✅ Added {original_recipient} to suppression list")
+                
+                # Do not process bounce as auto-reply
+                self.replied_message_ids.add(message_id)
+                return None
             
             # Check if email is already on suppression list
             from email_reply_monitor import EmailReplyMonitor
