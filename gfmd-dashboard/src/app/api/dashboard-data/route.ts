@@ -39,6 +39,8 @@ export async function GET() {
     const db = client.db('gfmd_narc_gone');
     const sequencesCollection = db.collection('email_sequences');
     const contactsCollection = db.collection('contacts');
+    const suppressionCollection = db.collection('suppression_list');
+    const interactionsCollection = db.collection('interactions');
     
     // Get sequence statistics
     const totalSequences = await sequencesCollection.countDocuments({});
@@ -46,7 +48,34 @@ export async function GET() {
     const completedSequences = await sequencesCollection.countDocuments({ status: 'completed' });
     const repliedSequences = await sequencesCollection.countDocuments({ status: 'replied' });
     
-    // Calculate response rate
+    // Get bounce and suppression metrics
+    const totalSuppressed = await suppressionCollection.countDocuments({ status: 'active' });
+    const bouncedEmails = await suppressionCollection.countDocuments({ 
+      status: 'active',
+      reason: { $regex: 'delivery failed|address not found|bounce', $options: 'i' }
+    });
+    
+    // Get total contacts made (emails sent)
+    const totalEmailsSent = await sequencesCollection.aggregate([
+      { $match: {} },
+      { $group: { _id: null, totalSent: { $sum: '$current_step' } } }
+    ]).toArray();
+    const emailsSentCount = totalEmailsSent.length > 0 ? totalEmailsSent[0].totalSent : 0;
+    
+    // Get actual human replies (excluding bounces/system messages)
+    const humanReplies = await interactionsCollection.countDocuments({
+      type: 'auto_reply',
+      sender_email: { 
+        $not: { $regex: 'postmaster|mailer-daemon|mail-daemon', $options: 'i' }
+      },
+      original_content: { $ne: '' }
+    });
+    
+    // Calculate true response rate (human replies / (emails sent - bounces))
+    const deliveredEmails = emailsSentCount - bouncedEmails;
+    const trueResponseRate = deliveredEmails > 0 ? ((humanReplies / deliveredEmails) * 100) : 0;
+    
+    // Legacy response rate for backward compatibility
     const responseRate = totalSequences > 0 ? ((repliedSequences / totalSequences) * 100) : 0;
     
     // Get recent sequences for activity table
@@ -150,6 +179,15 @@ export async function GET() {
       leadsChange: Math.max(0, repliedSequences - 3), // Weekly change
       replyRate: parseFloat(responseRate.toFixed(1)),
       openRate: 42.5, // Average from email performance
+      
+      // New KPI metrics
+      totalEmailsSent: emailsSentCount,
+      bouncedEmails,
+      totalSuppressed,
+      humanReplies,
+      trueResponseRate: parseFloat(trueResponseRate.toFixed(1)),
+      deliveredEmails,
+      
       totalSequences,
       activeSequences,
       completedSequences,
