@@ -521,16 +521,27 @@ class AIAutoReplySystem:
                 self.replied_message_ids.add(message_id)
                 return None
             
+            # Check auto-reply limit (max 2 per email address)
+            MAX_AUTO_REPLIES = 2
+            previous_replies = self._count_auto_replies_sent(sender_email)
+            if previous_replies >= MAX_AUTO_REPLIES:
+                print(f"AUTO-REPLY LIMIT REACHED: Already sent {previous_replies} auto-replies to {sender_email}")
+                print(f"Human intervention required - skipping auto-reply")
+                self.replied_message_ids.add(message_id)
+                return None
+
+            print(f"Auto-reply count for {sender_email}: {previous_replies}/{MAX_AUTO_REPLIES}")
+
             # Analyze sentiment (backup check)
             sentiment_analysis = self.analyze_reply_sentiment(reply_content)
             print(f"Sentiment: {sentiment_analysis['sentiment']}")
-            
+
             # Skip auto-reply for negative responses
             if sentiment_analysis["sentiment"] == "negative":
                 print("Negative sentiment detected - skipping auto-reply")
                 self.replied_message_ids.add(message_id)
                 return None
-            
+
             # Find prospect data from database
             prospect_data = self._find_prospect_by_email(sender_email)
             
@@ -578,6 +589,19 @@ class AIAutoReplySystem:
             return contact
         except:
             return None
+
+    def _count_auto_replies_sent(self, email: str) -> int:
+        """Count how many auto-replies have been sent to this email address"""
+        try:
+            count = self.storage.db.interactions.count_documents({
+                "type": "auto_reply",
+                "sender_email": email,
+                "success": True
+            })
+            return count
+        except Exception as e:
+            logger.error(f"Failed to count auto-replies for {email}: {e}")
+            return 0
     
     async def send_auto_reply(self, reply_data: Dict, recipient_email: str) -> bool:
         """Send the automated reply via Gmail"""
