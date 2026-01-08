@@ -48,115 +48,34 @@ class GroqReplyAgent(GroqBaseAgent):
             self.rag_system = None
     
     def get_system_prompt(self) -> str:
-        return """You are a Professional Email Reply Agent for GFMD (Global Focus Marketing & Distribution), responding to replies about Narc Gone drug destruction products.
+        return """You are an Email Reply Agent for GFMD responding about Narc Gone drug destruction products.
 
-**Your Role**: Generate professional, helpful email replies that continue conversations about GFMD's drug destruction solutions for law enforcement agencies.
+YOUR TASK: Read the incoming email and write a personalized reply that DIRECTLY addresses what they said.
 
-**CRITICAL REPLY RULES**:
+RULES:
+1. READ the email content carefully - understand what they're asking/saying
+2. WRITE a reply that specifically references their message
+3. Keep replies concise (2-4 sentences)
+4. Always suggest a next step (call, more info, etc.)
+5. Use professional but friendly tone
 
-1. **Greeting**: Use "Hi [FirstName]," (extract from original email if possible)
-2. **Tone**: Professional, helpful, conversational (not salesy)
-3. **Response Style**: Address their specific response directly
-4. **Length**: Keep replies concise (2-3 sentences max)
-5. **Next Steps**: Always suggest a concrete next step
-6. **Closing**: Always use "Best," followed by signature
-
-**Response Types to Handle**:
-
-**POSITIVE RESPONSES** (interested, want info, schedule call):
-- Thank them for their interest
-- Suggest specific next step (call, demo, info)
-- Be accommodating and helpful
-
-**QUESTIONS** (asking for details, pricing, specs):
-- Answer briefly and professionally using provided knowledge
-- Offer to provide more detailed information
-- Suggest a call for comprehensive discussion
-
-**COMPETITIVE OBJECTIONS** (we use incinerator, we have vendor, happy with current solution):
-- Acknowledge their current solution respectfully
-- Use provided competitive knowledge to highlight specific advantages
-- Focus on measurable benefits (cost savings, efficiency, compliance)
-- Position as potential improvement, not replacement criticism
-- Keep door open for future consideration
-
-**TIMING REQUESTS** (call me later, busy now):
-- Acknowledge their timing preferences
-- Offer flexibility
-- Suggest easy scheduling options
-
-**NEUTRAL/UNCLEAR** (brief responses, "thanks"):
-- Gently probe for their level of interest
-- Offer helpful information
-- Keep door open for future conversation
-
-**EMAIL STRUCTURE**:
-```
-Hi [FirstName],
-
-[Direct response to their message - acknowledge what they said]
-
-[Helpful next step or offer]
-
+SIGNATURE - Always end with:
 Best,
 
 Meranda Freiner
 solutions@gfmd.com
 619-341-9058     www.gfmd.com
-```
 
-**EXAMPLE GOOD REPLIES**:
+PRODUCT INFO (use when relevant):
+- Narc Gone: On-site drug destruction system for law enforcement
+- Benefits: 30-60% cost savings vs incineration, no transportation needed, faster processing
+- Compliance: Meets all DEA requirements
 
-If they say "I'm interested in learning more":
-```
-Hi Sarah,
-
-Great to hear you're interested! I'd be happy to walk you through how our Narc Gone system works and discuss the specific benefits for Austin PD.
-
-Would you have 15 minutes this week for a brief call?
-
-Best,
-
-Meranda Freiner
-solutions@gfmd.com
-619-341-9058     www.gfmd.com
-```
-
-If they ask "What's the cost?":
-```
-Hi Mike,
-
-Pricing depends on your department's volume and specific needs, but most agencies see 30-60% cost savings compared to incineration.
-
-I'd love to provide you with a customized quote - could we schedule a quick call to discuss your current disposal process?
-
-Best,
-
-Meranda Freiner
-solutions@gfmd.com
-619-341-9058     www.gfmd.com
-```
-
-If they say "We use incinerator for drug disposal":
-```
-Hi Brandi,
-
-I understand you currently use incineration. Many departments we work with initially used incinerators but found significant advantages with our on-site system - typically 30-60% cost reduction, no transportation requirements, and faster processing times.
-
-If budget optimization or operational efficiency ever becomes a priority, I'd be happy to show you a quick comparison.
-
-Best,
-
-Meranda Freiner
-solutions@gfmd.com
-619-341-9058     www.gfmd.com
-```
-
-**RETURN FORMAT** - Must be valid JSON:
+OUTPUT FORMAT - Valid JSON only:
 {
-  "subject": "Re: [their subject]",
-  "reply_body": "Full email reply with greeting and closing",
-  "sentiment_analysis": "positive/interested/question/neutral",
+  "subject": "Re: [original subject]",
+  "reply_body": "Hi [Name],\n\n[Your personalized response]\n\nBest,\n\nMeranda Freiner\nsolutions@gfmd.com\n619-341-9058     www.gfmd.com",
+  "sentiment_analysis": "positive/question/neutral/competitive_objection",
   "suggested_next_action": "schedule_call/send_info/follow_up_later"
 }"""
 
@@ -231,88 +150,145 @@ solutions@gfmd.com
             return ""
 
     async def execute(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate a reply to an incoming email"""
-        try:
-            original_email = task.get("original_email", {})
-            reply_content = task.get("reply_content", "")
-            prospect_data = task.get("prospect_data", {})
-            
-            # Extract key information
-            sender_name = original_email.get("sender_name", "")
-            original_subject = original_email.get("subject", "")
-            company_name = prospect_data.get("company_name", "")
-            
-            # Extract first name for greeting
-            first_name = self._extract_first_name(sender_name)
-            if not first_name and prospect_data.get("email"):
-                first_name = self._extract_name_from_email(prospect_data.get("email"))
-            
-            # Analyze for competitive objections
-            competitive_analysis = self._analyze_competitive_objection(reply_content)
-            
-            # Get competitive knowledge if needed
-            competitive_knowledge = ""
-            if competitive_analysis["requires_competitive_response"]:
-                competitive_knowledge = self._get_competitive_knowledge(
-                    competitive_analysis["competitors_mentioned"], 
-                    reply_content
-                )
-            
-            # Build enhanced reply generation prompt
-            reply_prompt = {
-                "task": "generate_reply",
-                "context": {
-                    "original_subject": original_subject,
-                    "reply_content": reply_content,
-                    "sender_name": sender_name,
-                    "first_name": first_name,
-                    "company_name": company_name,
-                    "prospect_data": prospect_data,
-                    "competitive_analysis": competitive_analysis,
-                    "competitive_knowledge": competitive_knowledge
-                },
-                "instruction": "Generate a professional email reply that addresses their specific response. If they mentioned competitive alternatives, use the provided competitive knowledge to highlight specific advantages professionally. Focus on measurable benefits and positioning our solution as a potential improvement. Return valid JSON."
-            }
-            
-            # Generate reply using AI
-            result = await self.think(reply_prompt)
-            
-            if "error" in result:
-                return self._create_fallback_reply(reply_content, first_name, original_subject, competitive_analysis)
-            
-            # Parse AI response
-            if "response" in result and isinstance(result["response"], str):
-                try:
+        """Generate a reply to an incoming email - AI ALWAYS analyzes the specific content"""
+        import time
+
+        original_email = task.get("original_email", {})
+        reply_content = task.get("reply_content", "")
+        prospect_data = task.get("prospect_data", {})
+
+        # CRITICAL: Log exactly what we're processing
+        print(f"\n{'='*60}")
+        print(f"AI REPLY GENERATION - ANALYZING THIS SPECIFIC EMAIL:")
+        print(f"{'='*60}")
+        print(f"EMAIL CONTENT TO ANALYZE:")
+        print(f"{reply_content}")
+        print(f"{'='*60}\n")
+
+        # Extract key information
+        sender_name = original_email.get("sender_name", "")
+        original_subject = original_email.get("subject", "")
+        company_name = prospect_data.get("company_name", "")
+
+        # Extract first name for greeting
+        first_name = self._extract_first_name(sender_name)
+        if not first_name and prospect_data.get("email"):
+            first_name = self._extract_name_from_email(prospect_data.get("email"))
+        if not first_name:
+            first_name = "there"
+
+        # Analyze for competitive objections
+        competitive_analysis = self._analyze_competitive_objection(reply_content)
+
+        # Get competitive knowledge if needed
+        competitive_knowledge = ""
+        if competitive_analysis["requires_competitive_response"]:
+            competitive_knowledge = self._get_competitive_knowledge(
+                competitive_analysis["competitors_mentioned"],
+                reply_content
+            )
+
+        # Build the AI prompt - NO TEMPLATES, AI MUST ANALYZE THE ACTUAL CONTENT
+        reply_prompt = f"""ANALYZE AND RESPOND TO THIS SPECIFIC EMAIL:
+
+=== EMAIL RECEIVED ===
+From: {sender_name}
+Subject: {original_subject}
+Content:
+{reply_content}
+=== END EMAIL ===
+
+INSTRUCTIONS:
+1. READ the email content above carefully
+2. IDENTIFY what they are saying/asking
+3. WRITE a personalized reply that DIRECTLY addresses their specific message
+4. Reference SPECIFIC things they mentioned in their email
+
+Recipient first name: {first_name}
+{f'Competitive context: {competitive_knowledge}' if competitive_knowledge else ''}
+
+REQUIRED JSON FORMAT:
+{{
+  "subject": "Re: {original_subject}",
+  "reply_body": "Hi {first_name},\\n\\n[Your personalized reply that specifically addresses their message]\\n\\nBest,\\n\\nMeranda Freiner\\nsolutions@gfmd.com\\n619-341-9058     www.gfmd.com",
+  "sentiment_analysis": "[positive/interested/question/neutral/competitive_objection]",
+  "suggested_next_action": "[schedule_call/send_info/follow_up_later]"
+}}
+
+CRITICAL: Your reply_body MUST reference specific content from their email. Generic responses are NOT acceptable."""
+
+        # Try up to 3 times to get a valid AI response
+        max_retries = 3
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                print(f"AI Generation Attempt {attempt + 1}/{max_retries}...")
+
+                # Call AI with the prompt as a simple string
+                result = await self.think({"prompt": reply_prompt})
+
+                print(f"AI Response received: {str(result)[:500]}...")
+
+                # Try to parse the response
+                if "error" in result:
+                    last_error = result.get("error")
+                    print(f"AI returned error: {last_error}")
+                    time.sleep(1)
+                    continue
+
+                # Handle response - it may already be parsed JSON
+                reply_data = None
+
+                if isinstance(result, dict) and "reply_body" in result:
+                    reply_data = result
+                elif "response" in result and isinstance(result["response"], str):
                     response_text = result["response"]
+                    # Extract JSON from response
                     if "{" in response_text and "}" in response_text:
                         start = response_text.find("{")
                         end = response_text.rfind("}") + 1
                         json_text = response_text[start:end]
                         reply_data = json.loads(json_text)
-                        
-                        # Ensure required fields
-                        reply_data.setdefault("subject", f"Re: {original_subject}")
-                        reply_data.setdefault("sentiment_analysis", "neutral")
-                        reply_data.setdefault("suggested_next_action", "follow_up_later")
-                        
-                        reply_data["success"] = True
-                        reply_data["recipient_email"] = prospect_data.get("email", "")
-                        
-                        return reply_data
-                except json.JSONDecodeError:
-                    pass
-            
-            # Fallback if parsing fails
-            return self._create_fallback_reply(reply_content, first_name, original_subject, competitive_analysis)
-            
-        except Exception as e:
-            logger.error(f"Reply generation failed: {e}")
-            return self._create_fallback_reply(
-                task.get("reply_content", ""), 
-                "there", 
-                task.get("original_email", {}).get("subject", ""),
-                competitive_analysis
-            )
+                elif isinstance(result, dict):
+                    # Result might already be the parsed data
+                    reply_data = result
+
+                if reply_data and "reply_body" in reply_data:
+                    # Validate the reply is not generic
+                    reply_body = reply_data.get("reply_body", "")
+
+                    print(f"AI Generated Reply:\n{reply_body}")
+
+                    # Ensure required fields
+                    reply_data.setdefault("subject", f"Re: {original_subject}")
+                    reply_data.setdefault("sentiment_analysis", "neutral")
+                    reply_data.setdefault("suggested_next_action", "follow_up_later")
+                    reply_data["success"] = True
+                    reply_data["recipient_email"] = prospect_data.get("email", "")
+
+                    return reply_data
+                else:
+                    print(f"AI response missing reply_body, retrying...")
+                    last_error = "Response missing reply_body field"
+
+            except json.JSONDecodeError as e:
+                last_error = f"JSON parse error: {e}"
+                print(f"JSON parsing failed: {e}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"AI call failed: {e}")
+
+            time.sleep(1)  # Brief pause before retry
+
+        # All retries failed - return error, do NOT use template
+        print(f"AI FAILED after {max_retries} attempts. Last error: {last_error}")
+        return {
+            "success": False,
+            "error": f"AI analysis failed after {max_retries} attempts: {last_error}",
+            "reply_body": None,
+            "subject": f"Re: {original_subject}"
+        }
     
     def _extract_first_name(self, full_name: str) -> str:
         """Extract first name from full name"""
@@ -350,119 +326,6 @@ solutions@gfmd.com
         
         return ""
     
-    def _create_fallback_reply(self, reply_content: str, first_name: str, original_subject: str, competitive_analysis: Dict = None) -> Dict[str, Any]:
-        """Create an intelligent fallback reply with competitive handling"""
-        greeting = f"Hi {first_name}," if first_name else "Hi there,"
-        
-        # Check for competitive objections
-        content_lower = reply_content.lower()
-        
-        # Handle specific competitive objections
-        if competitive_analysis and competitive_analysis.get("has_competitive_objection"):
-            competitors = competitive_analysis.get("competitors_mentioned", [])
-            
-            if "incineration" in competitors:
-                body = f"""{greeting}
-
-I understand you currently use incineration for disposal. Many departments we work with initially used incinerators but found our on-site Narc Gone system offers significant advantages - typically 30-60% cost savings, no transportation requirements, and faster processing times.
-
-If budget optimization or operational efficiency ever becomes a priority, I'd be happy to show you a quick comparison of processes and costs.
-
-Best,
-
-Meranda Freiner
-solutions@gfmd.com
-619-341-9058     www.gfmd.com"""
-                sentiment = "competitive_objection"
-                action = "follow_up_later"
-                
-            elif "existing_vendor" in competitors:
-                body = f"""{greeting}
-
-I understand you have an existing solution. Many agencies we work with have found that comparing options periodically helps ensure they're getting the best value and efficiency.
-
-If you're ever interested in seeing how our process compares to your current approach, I'd be happy to provide a brief overview.
-
-Best,
-
-Meranda Freiner
-solutions@gfmd.com
-619-341-9058     www.gfmd.com"""
-                sentiment = "competitive_objection"
-                action = "follow_up_later"
-                
-            else:
-                # Generic competitive response
-                body = f"""{greeting}
-
-I understand you have an established process. Our Narc Gone system has helped many departments improve their operations through cost savings and increased efficiency.
-
-If you're ever interested in exploring alternatives, I'd be happy to provide information for future reference.
-
-Best,
-
-Meranda Freiner
-solutions@gfmd.com
-619-341-9058     www.gfmd.com"""
-                sentiment = "competitive_objection"
-                action = "follow_up_later"
-        
-        # Handle positive responses
-        elif any(word in content_lower for word in ["interested", "yes", "call", "schedule", "more info"]):
-            body = f"""{greeting}
-
-Thank you for your interest! I'd be happy to discuss how our Narc Gone system could help your department reduce disposal costs and ensure compliance.
-
-Would you be available for a brief call this week?
-
-Best,
-
-Meranda Freiner
-solutions@gfmd.com
-619-341-9058     www.gfmd.com"""
-            sentiment = "interested"
-            action = "schedule_call"
-            
-        # Handle questions
-        elif any(word in content_lower for word in ["how", "what", "cost", "price", "when", "where"]):
-            body = f"""{greeting}
-
-Great question! I'd be happy to provide you with detailed information about our Narc Gone system and how it could benefit your department.
-
-Could we schedule a brief call to discuss your specific needs and answer any questions you might have?
-
-Best,
-
-Meranda Freiner
-solutions@gfmd.com
-619-341-9058     www.gfmd.com"""
-            sentiment = "question"
-            action = "schedule_call"
-            
-        # Generic neutral response
-        else:
-            body = f"""{greeting}
-
-Thank you for your response. If you'd like to learn more about our drug destruction solutions, I'm happy to provide additional information at your convenience.
-
-Please let me know if you have any questions.
-
-Best,
-
-Meranda Freiner
-solutions@gfmd.com
-619-341-9058     www.gfmd.com"""
-            sentiment = "neutral"
-            action = "follow_up_later"
-        
-        return {
-            "success": True,
-            "subject": f"Re: {original_subject}",
-            "reply_body": body,
-            "sentiment_analysis": sentiment,
-            "suggested_next_action": action
-        }
-
 class AIAutoReplySystem:
     """Complete automated reply system with AI-powered responses"""
     
@@ -478,7 +341,7 @@ class AIAutoReplySystem:
         # Track which emails we've already replied to
         self.replied_message_ids = set()
         
-        logger.info("✅ AI Auto-Reply System initialized")
+        logger.info("AI Auto-Reply System initialized")
     
     def _extract_original_recipient_from_bounce(self, bounce_content: str, subject: str) -> Optional[str]:
         """Extract the original recipient email from bounce message content"""
@@ -555,7 +418,7 @@ class AIAutoReplySystem:
             # Check for replies in the last hour
             since_date = (datetime.now() - timedelta(hours=2)).strftime("%Y/%m/%d")
             
-            print(f"🔍 Checking for replies since {since_date}...")
+            print(f"Checking for replies since {since_date}...")
             
             # Use existing Gmail integration
             replies = self.gmail.check_for_replies(since_date=since_date, max_results=20)
@@ -567,7 +430,7 @@ class AIAutoReplySystem:
                 if message_id and message_id not in self.replied_message_ids:
                     new_replies.append(reply)
             
-            print(f"📧 Found {len(new_replies)} new replies to process")
+            print(f"Found {len(new_replies)} new replies to process")
             return new_replies
             
         except Exception as e:
@@ -581,9 +444,14 @@ class AIAutoReplySystem:
             sender_email = reply_data.get("from_email", "")
             reply_content = reply_data.get("content", "")
             original_subject = reply_data.get("subject", "")
-            
-            print(f"\n📨 Processing reply from: {sender_email}")
-            print(f"💭 Content preview: {reply_content[:100]}...")
+
+            print(f"\n{'#'*60}")
+            print(f"PROCESSING EMAIL #{message_id}")
+            print(f"From: {sender_email}")
+            print(f"Subject: {original_subject}")
+            print(f"Content length: {len(reply_content)} chars")
+            print(f"Full content: {reply_content[:300]}...")
+            print(f"{'#'*60}")
             
             # CRITICAL: Check for bounce messages first (before any other processing)
             bounce_senders = ['postmaster', 'mailer-daemon', 'mail-daemon', 'delivery-daemon', 'no-reply']
@@ -598,7 +466,7 @@ class AIAutoReplySystem:
             has_bounce_keywords = any(keyword in content_lower for keyword in bounce_keywords)
             
             if is_system_bounce or has_bounce_keywords:
-                print(f"🚫 BOUNCE MESSAGE DETECTED from {sender_email}")
+                print(f"BOUNCE MESSAGE DETECTED from {sender_email}")
                 print(f"   System sender: {is_system_bounce}")
                 print(f"   Bounce keywords: {has_bounce_keywords}")
                 
@@ -619,7 +487,7 @@ class AIAutoReplySystem:
                             'source': 'bounce_detection'
                         }
                     )
-                    print(f"   ✅ Added {original_recipient} to suppression list")
+                    print(f"   Added {original_recipient} to suppression list")
                 
                 # Do not process bounce as auto-reply
                 self.replied_message_ids.add(message_id)
@@ -630,14 +498,14 @@ class AIAutoReplySystem:
             monitor = EmailReplyMonitor()
             
             if monitor.check_suppression_status(sender_email):
-                print(f"🚫 Email {sender_email} is already on suppression list - skipping auto-reply")
+                print(f"Email {sender_email} is already on suppression list - skipping auto-reply")
                 self.replied_message_ids.add(message_id)
                 return None
             
             # Analyze email for suppression triggers
             content_analysis = monitor.analyze_email_content(reply_content, original_subject)
             if content_analysis['should_suppress']:
-                print(f"🚫 Suppression keywords detected: {content_analysis['keywords_found']}")
+                print(f"Suppression keywords detected: {content_analysis['keywords_found']}")
                 print(f"   Reason: {content_analysis['suppression_reason']}")
                 
                 # Add to suppression list
@@ -655,11 +523,11 @@ class AIAutoReplySystem:
             
             # Analyze sentiment (backup check)
             sentiment_analysis = self.analyze_reply_sentiment(reply_content)
-            print(f"🎯 Sentiment: {sentiment_analysis['sentiment']}")
+            print(f"Sentiment: {sentiment_analysis['sentiment']}")
             
             # Skip auto-reply for negative responses
             if sentiment_analysis["sentiment"] == "negative":
-                print("❌ Negative sentiment detected - skipping auto-reply")
+                print("Negative sentiment detected - skipping auto-reply")
                 self.replied_message_ids.add(message_id)
                 return None
             
@@ -676,11 +544,13 @@ class AIAutoReplySystem:
                 "prospect_data": prospect_data or {"email": sender_email}
             }
             
-            print("🤖 Generating AI reply...")
+            print("Generating AI reply...")
             ai_response = await self.reply_agent.execute(reply_task)
-            
+
             if not ai_response.get("success"):
-                print("❌ AI reply generation failed")
+                error_msg = ai_response.get("error", "Unknown error")
+                print(f"AI reply generation FAILED: {error_msg}")
+                print(f"Will NOT send any reply to {sender_email} - AI must analyze properly")
                 return None
             
             # Send the reply
@@ -691,10 +561,10 @@ class AIAutoReplySystem:
                 # Record in database
                 await self._record_auto_reply(reply_data, ai_response, sentiment_analysis)
                 
-                print(f"✅ Auto-reply sent successfully to {sender_email}")
+                print(f"Auto-reply sent successfully to {sender_email}")
                 return ai_response
             else:
-                print(f"❌ Failed to send auto-reply to {sender_email}")
+                print(f"Failed to send auto-reply to {sender_email}")
                 return None
                 
         except Exception as e:
@@ -754,8 +624,8 @@ class AIAutoReplySystem:
     
     async def run_continuous_monitoring(self):
         """Run continuous monitoring for replies"""
-        print("🚀 Starting AI Auto-Reply Continuous Monitoring")
-        print(f"⏰ Checking every {self.check_interval_minutes} minutes")
+        print("Starting AI Auto-Reply Continuous Monitoring")
+        print(f"Checking every {self.check_interval_minutes} minutes")
         print("=" * 60)
         
         while True:
@@ -764,7 +634,7 @@ class AIAutoReplySystem:
                 replies = await self.check_for_new_replies()
                 
                 if replies:
-                    print(f"\n🎯 Processing {len(replies)} new replies...")
+                    print(f"\nProcessing {len(replies)} new replies...")
                     
                     for reply in replies:
                         await self.process_reply(reply)
@@ -772,37 +642,47 @@ class AIAutoReplySystem:
                         # Small delay between processing replies
                         await asyncio.sleep(2)
                 else:
-                    print("📭 No new replies found")
+                    print("No new replies found")
                 
                 # Wait before next check
-                print(f"\n⏸️ Waiting {self.check_interval_minutes} minutes until next check...")
+                print(f"\nWaiting {self.check_interval_minutes} minutes until next check...")
                 await asyncio.sleep(self.check_interval_minutes * 60)
                 
             except KeyboardInterrupt:
-                print("\n🛑 Monitoring stopped by user")
+                print("\nMonitoring stopped by user")
                 break
             except Exception as e:
                 logger.error(f"Error in continuous monitoring: {e}")
-                print(f"❌ Error occurred, waiting 5 minutes before retry...")
+                print(f"Error occurred, waiting 5 minutes before retry...")
                 await asyncio.sleep(300)  # Wait 5 minutes on error
     
     async def run_single_check(self):
         """Run a single check for replies (for testing)"""
-        print("🤖 AI Auto-Reply System - Single Check")
+        print("AI Auto-Reply System - Single Check")
         print("=" * 50)
-        
+
         replies = await self.check_for_new_replies()
-        
+
         if replies:
-            print(f"Processing {len(replies)} replies...")
-            
+            total_replies = len(replies)
+            print(f"\n*** FOUND {total_replies} REPLIES TO PROCESS ***\n")
+
             results = []
-            for reply in replies:
+            for index, reply in enumerate(replies, 1):
+                print(f"\n>>> Processing reply {index} of {total_replies} <<<")
                 result = await self.process_reply(reply)
                 if result:
                     results.append(result)
-            
-            print(f"\n📊 Summary: {len(results)} auto-replies sent successfully")
+                    print(f">>> Reply {index} processed successfully <<<")
+                else:
+                    print(f">>> Reply {index} skipped (suppressed/bounce/negative) <<<")
+
+                # Small delay between processing
+                await asyncio.sleep(1)
+
+            print(f"\n{'='*50}")
+            print(f"SUMMARY: {len(results)} auto-replies sent out of {total_replies} total")
+            print(f"{'='*50}")
             return results
         else:
             print("No new replies to process")
