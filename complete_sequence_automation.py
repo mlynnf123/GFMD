@@ -204,6 +204,9 @@ class CompleteSequenceAutomation:
             if not contact:
                 return {"success": False, "error": "Contact not found"}
             
+            # Get previous emails for context (to avoid repetition)
+            previous_emails = sequence.get("emails_sent", [])
+
             # Generate email
             task = {
                 "prospect_data": {
@@ -220,7 +223,8 @@ class CompleteSequenceAutomation:
                     "tone": template["tone"],
                     "call_to_action": template["call_to_action"],
                     "is_follow_up": template["step"] > 1,
-                    "previous_emails_sent": len(sequence.get("emails_sent", []))
+                    "previous_emails_sent": len(previous_emails),
+                    "previous_emails": previous_emails  # Pass full email history for differentiation
                 }
             }
             
@@ -257,6 +261,7 @@ class CompleteSequenceAutomation:
                 "step": next_step,
                 "sent_at": datetime.now().isoformat(),
                 "subject": email_result.get("subject"),
+                "body": email_result.get("body"),
                 "template_type": template.get("type"),
                 "actually_sent": send_emails and self.gmail.service is not None
             })

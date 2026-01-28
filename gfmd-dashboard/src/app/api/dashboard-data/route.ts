@@ -105,28 +105,49 @@ export async function GET() {
       contactMap.set(contact._id.toString(), contact);
     });
     
-    // Get email performance data (last 7 days)
+    // Get email performance data (last 7 days) - REAL DATA from interactions
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
+
     const emailPerformance = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
-      
-      // Count emails sent on this date
+      const startOfDay = new Date(dateStr + 'T00:00:00.000Z');
+      const endOfDay = new Date(dateStr + 'T23:59:59.999Z');
+
+      // Count emails sent on this date from sequences
       const sent = await sequencesCollection.countDocuments({
         'emails_sent.sent_at': {
           $gte: dateStr + 'T00:00:00',
           $lt: dateStr + 'T23:59:59'
         }
       });
-      
-      // Simulate opens and replies (in real implementation, track these)
-      const opens = Math.floor(sent * (0.35 + Math.random() * 0.15)); // 35-50% open rate
-      const replies = Math.floor(sent * (0.05 + Math.random() * 0.05)); // 5-10% reply rate
-      
+
+      // Get REAL opens from interactions collection (emails with openedAt on this date)
+      const opens = await interactionsCollection.countDocuments({
+        type: 'email_sent',
+        openedAt: { $gte: startOfDay, $lt: endOfDay }
+      });
+
+      // Get REAL replies from interactions collection
+      const repliesFromTracking = await interactionsCollection.countDocuments({
+        type: 'email_sent',
+        repliedAt: { $gte: startOfDay, $lt: endOfDay }
+      });
+
+      // Also count auto_reply type interactions (detected replies)
+      const autoReplies = await interactionsCollection.countDocuments({
+        type: 'auto_reply',
+        timestamp: { $gte: startOfDay, $lt: endOfDay },
+        sender_email: {
+          $not: { $regex: 'postmaster|mailer-daemon|mail-daemon', $options: 'i' }
+        }
+      });
+
+      const replies = repliesFromTracking + autoReplies;
+
       emailPerformance.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         sent,
@@ -162,23 +183,105 @@ export async function GET() {
       };
     });
     
-    // Mock revenue data (in real implementation, integrate with CRM)
-    const revenueOverTime = [
-      { month: 'Oct', revenue: 45000 },
-      { month: 'Nov', revenue: 52000 },
-      { month: 'Dec', revenue: 67000 }
-    ];
-    
+    // Get REAL revenue data from orders collection
+    const ordersCollection = db.collection('orders');
+
+    // Get revenue aggregated by month for last 6 months
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const revenueAggregation = await ordersCollection.aggregate([
+      {
+        $match: {
+          $or: [
+            { orderDate: { $gte: sixMonthsAgo } },
+            { recordedAt: { $gte: sixMonthsAgo } }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: { $ifNull: ['$orderDate', '$recordedAt'] } },
+            month: { $month: { $ifNull: ['$orderDate', '$recordedAt'] } }
+          },
+          revenue: { $sum: { $ifNull: ['$revenue', '$amount', 0] } }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]).toArray();
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const revenueOverTime = revenueAggregation.map(item => ({
+      month: monthNames[item._id.month - 1],
+      revenue: item.revenue || 0
+    }));
+
+    // If no orders exist, show empty state instead of fake data
+    if (revenueOverTime.length === 0) {
+      const currentMonth = new Date().getMonth();
+      for (let i = 2; i >= 0; i--) {
+        const monthIndex = (currentMonth - i + 12) % 12;
+        revenueOverTime.push({ month: monthNames[monthIndex], revenue: 0 });
+      }
+    }
+
+    // Calculate total sales from orders
+    const totalSalesAgg = await ordersCollection.aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: { $ifNull: ['$revenue', '$amount', 0] } }
+        }
+      }
+    ]).toArray();
+    const actualTotalSales = totalSalesAgg.length > 0 ? totalSalesAgg[0].total : 0;
+
+    // Calculate sales change (this week vs last week)
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    const thisWeekSales = await ordersCollection.aggregate([
+      { $match: { $or: [{ orderDate: { $gte: oneWeekAgo } }, { recordedAt: { $gte: oneWeekAgo } }] } },
+      { $group: { _id: null, total: { $sum: { $ifNull: ['$revenue', '$amount', 0] } } } }
+    ]).toArray();
+
+    const lastWeekSales = await ordersCollection.aggregate([
+      { $match: { $or: [
+        { orderDate: { $gte: twoWeeksAgo, $lt: oneWeekAgo } },
+        { recordedAt: { $gte: twoWeeksAgo, $lt: oneWeekAgo } }
+      ] } },
+      { $group: { _id: null, total: { $sum: { $ifNull: ['$revenue', '$amount', 0] } } } }
+    ]).toArray();
+
+    const thisWeekTotal = thisWeekSales.length > 0 ? thisWeekSales[0].total : 0;
+    const lastWeekTotal = lastWeekSales.length > 0 ? lastWeekSales[0].total : 0;
+    const actualSalesChange = lastWeekTotal > 0 ? ((thisWeekTotal - lastWeekTotal) / lastWeekTotal * 100) : 0;
+
+    // Calculate REAL open rate from interactions
+    const totalEmailsWithTracking = await interactionsCollection.countDocuments({
+      type: 'email_sent'
+    });
+    const totalOpens = await interactionsCollection.countDocuments({
+      type: 'email_sent',
+      openedAt: { $exists: true, $ne: null }
+    });
+    const actualOpenRate = totalEmailsWithTracking > 0
+      ? parseFloat(((totalOpens / totalEmailsWithTracking) * 100).toFixed(1))
+      : 0;
+
     await client.close();
-    
-    // Return real data from your GFMD system
+
+    // Return REAL data from your GFMD system
     const dashboardData = {
-      totalSales: 164000, // Calculated from sequences and average deal size
-      salesChange: 28.8,
+      totalSales: actualTotalSales,
+      salesChange: parseFloat(actualSalesChange.toFixed(1)),
       convertedLeads: repliedSequences,
-      leadsChange: Math.max(0, repliedSequences - 3), // Weekly change
+      leadsChange: Math.max(0, repliedSequences - 3),
       replyRate: parseFloat(responseRate.toFixed(1)),
-      openRate: 42.5, // Average from email performance
+      openRate: actualOpenRate,
       
       // New KPI metrics
       totalEmailsSent: emailsSentCount,
@@ -206,67 +309,38 @@ export async function GET() {
     
   } catch (error) {
     console.error('Dashboard API Error:', error);
-    
-    // Return fallback data if MongoDB connection fails
-    const fallbackData = {
-      totalSales: 164000,
-      salesChange: 28.8,
-      convertedLeads: 12,
-      leadsChange: 3,
-      replyRate: 7.2,
-      openRate: 42.5,
-      totalSequences: 62,
-      activeSequences: 57,
-      completedSequences: 5,
-      emailPerformance: [
-        { date: 'Dec 11', sent: 20, opens: 8, replies: 2 },
-        { date: 'Dec 12', sent: 22, opens: 10, replies: 1 },
-        { date: 'Dec 13', sent: 18, opens: 7, replies: 3 },
-        { date: 'Dec 14', sent: 15, opens: 6, replies: 1 },
-        { date: 'Dec 15', sent: 0, opens: 0, replies: 0 }, // Weekend
-        { date: 'Dec 16', sent: 25, opens: 11, replies: 2 },
-        { date: 'Dec 17', sent: 20, opens: 8, replies: 1 }
-      ],
-      revenueOverTime: [
-        { month: 'Oct', revenue: 45000 },
-        { month: 'Nov', revenue: 52000 },
-        { month: 'Dec', revenue: 67000 }
-      ],
-      leadActivity: [
-        {
-          name: 'Chief Robert Martinez',
-          organization: 'Metro City Police Department',
-          stage: 'Initial Contact',
-          lastContact: '2 days ago',
-          daysUnanswered: 2,
-          status: 'Waiting'
-        },
-        {
-          name: 'Sheriff Amanda Thompson',
-          organization: 'Riverside County Sheriff',
-          stage: 'Follow-up',
-          lastContact: '5 days ago',
-          daysUnanswered: 5,
-          status: 'Waiting'
-        },
-        {
-          name: 'Agent Sarah Johnson',
-          organization: 'DEA Houston',
-          stage: 'Qualified',
-          lastContact: '1 day ago',
-          daysUnanswered: null,
-          status: 'Engaged'
-        }
-      ],
+
+    // Return error state with empty data - no fake data
+    const errorData = {
+      totalSales: 0,
+      salesChange: 0,
+      convertedLeads: 0,
+      leadsChange: 0,
+      replyRate: 0,
+      openRate: 0,
+      totalSequences: 0,
+      activeSequences: 0,
+      completedSequences: 0,
+      totalEmailsSent: 0,
+      bouncedEmails: 0,
+      totalSuppressed: 0,
+      humanReplies: 0,
+      trueResponseRate: 0,
+      deliveredEmails: 0,
+      emailPerformance: [],
+      revenueOverTime: [],
+      leadActivity: [],
+      stepDistribution: [],
       systemStatus: {
-        automationRunning: true,
-        lastContactAddition: new Date().toISOString(),
-        nextScheduledRun: getNextScheduledRun()
+        automationRunning: false,
+        lastContactAddition: null,
+        nextScheduledRun: null
       },
-      error: 'Using fallback data - MongoDB connection failed'
+      connectionError: true,
+      errorMessage: 'Database connection failed - please check configuration'
     };
-    
-    return NextResponse.json(fallbackData);
+
+    return NextResponse.json(errorData, { status: 500 });
   }
 }
 

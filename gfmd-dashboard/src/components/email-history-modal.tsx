@@ -8,6 +8,7 @@ interface EmailData {
   sent_at: string;
   subject: string;
   actually_sent: boolean;
+  body?: string;
   content?: string;
 }
 
@@ -39,6 +40,7 @@ export function EmailHistoryModal({ isOpen, onClose, contactEmail, contactId }: 
   const [contact, setContact] = useState<ContactDetails | null>(null);
   const [sequence, setSequence] = useState<SequenceDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedEmail, setExpandedEmail] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen && contactEmail) {
@@ -177,46 +179,84 @@ export function EmailHistoryModal({ isOpen, onClose, contactEmail, contactId }: 
                     <div className="space-y-4">
                       {sequence.emails_sent
                         .sort((a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime())
-                        .map((email, index) => (
-                        <div 
-                          key={index} 
-                          className="p-4 rounded"
-                          style={{
-                            borderLeft: '4px solid #4e2780',
-                            backgroundColor: '#efebe2',
-                            opacity: email.actually_sent ? 1 : 0.7
-                          }}
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <h4 className="font-normal" style={{color: '#272030'}}>
-                                Step {email.step}: {email.subject}
-                              </h4>
-                              <p className="text-sm font-light" style={{color: '#272030'}}>
-                                {new Date(email.sent_at).toLocaleDateString()} at{' '}
-                                {new Date(email.sent_at).toLocaleTimeString()}
-                              </p>
-                            </div>
-                            <span 
-                              className="px-2 py-1 rounded text-xs font-light"
+                        .map((email, index) => {
+                          const emailContent = email.body || email.content;
+                          const isExpanded = expandedEmail === index;
+
+                          return (
+                            <div
+                              key={index}
+                              className="rounded overflow-hidden"
                               style={{
-                                backgroundColor: email.actually_sent ? '#4e2780' : '#272030',
-                                color: 'white'
+                                borderLeft: '4px solid #4e2780',
+                                backgroundColor: '#efebe2',
+                                opacity: email.actually_sent ? 1 : 0.7
                               }}
                             >
-                              {email.actually_sent ? 'Sent' : 'Draft'}
-                            </span>
-                          </div>
-                          
-                          {email.content && (
-                            <div className="mt-3 p-3 rounded text-sm" style={{backgroundColor: '#ffffff'}}>
-                              <p className="font-light whitespace-pre-wrap" style={{color: '#272030'}}>
-                                {email.content}
-                              </p>
+                              <div
+                                className="p-4 cursor-pointer hover:bg-opacity-80 transition-colors"
+                                onClick={() => setExpandedEmail(isExpanded ? null : index)}
+                                style={{
+                                  backgroundColor: isExpanded ? '#e5e1d8' : 'transparent'
+                                }}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                        className="text-sm font-light"
+                                        style={{color: '#4e2780'}}
+                                      >
+                                        {isExpanded ? '[-]' : '[+]'}
+                                      </span>
+                                      <h4 className="font-normal" style={{color: '#272030'}}>
+                                        Step {email.step}: {email.subject}
+                                      </h4>
+                                    </div>
+                                    <p className="text-sm font-light mt-1 ml-6" style={{color: '#272030'}}>
+                                      {new Date(email.sent_at).toLocaleDateString()} at{' '}
+                                      {new Date(email.sent_at).toLocaleTimeString()}
+                                    </p>
+                                  </div>
+                                  <span
+                                    className="px-2 py-1 rounded text-xs font-light shrink-0"
+                                    style={{
+                                      backgroundColor: email.actually_sent ? '#4e2780' : '#272030',
+                                      color: 'white'
+                                    }}
+                                  >
+                                    {email.actually_sent ? 'Sent' : 'Draft'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {isExpanded && (
+                                <div className="px-4 pb-4">
+                                  <div
+                                    className="p-4 rounded text-sm"
+                                    style={{backgroundColor: '#ffffff', border: '1px solid #efebe2'}}
+                                  >
+                                    {emailContent ? (
+                                      <p
+                                        className="font-light whitespace-pre-wrap"
+                                        style={{color: '#272030', lineHeight: '1.6'}}
+                                      >
+                                        {emailContent}
+                                      </p>
+                                    ) : (
+                                      <p
+                                        className="font-light italic"
+                                        style={{color: '#666'}}
+                                      >
+                                        Email content not available. Content storage was added after this email was sent.
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ))}
+                          );
+                        })}
                     </div>
                   ) : (
                     <p className="text-center py-8 font-light" style={{color: '#272030'}}>
