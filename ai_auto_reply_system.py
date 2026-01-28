@@ -5,6 +5,7 @@ Detects email replies and generates intelligent, contextual responses using Groq
 """
 
 import os
+import json
 import asyncio
 import logging
 from typing import Dict, Any, List, Optional
