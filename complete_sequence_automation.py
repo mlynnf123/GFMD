@@ -413,14 +413,18 @@ class CompleteSequenceAutomation:
             schedule.every().thursday.at("14:00").do(self._add_daily_contacts)
             schedule.every().friday.at("14:00").do(self._add_daily_contacts)
             
-            # Add auto-reply monitoring every 2 hours 
+            # Add auto-reply monitoring every 2 hours
             schedule.every(2).hours.do(self._check_auto_replies)
-            
+
+            # Add daily bounce/suppression scan at 6 AM CST = 12:00 UTC
+            schedule.every().day.at("12:00").do(self._scan_for_bounces)
+
             print("⏰ Background scheduler started")
             print("   - Processing every hour")
-            print("   - Special runs at 9 AM, 1 PM, 5 PM CST") 
+            print("   - Special runs at 9 AM, 1 PM, 5 PM CST")
             print("   - Daily contact addition: Monday-Friday at 8 AM CST (10 new contacts)")
             print("   - Auto-reply monitoring: Every 2 hours")
+            print("   - Daily bounce scan: 6 AM CST")
             print("   - Email timing: Every 2 business days")
             
             while True:
@@ -472,23 +476,49 @@ class CompleteSequenceAutomation:
     def _check_auto_replies(self):
         """Scheduled auto-reply checking function"""
         print(f"\n🤖 {datetime.now().strftime('%Y-%m-%d %H:%M')} - Checking for email replies...")
-        
+
         if self.auto_reply_system:
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 results = loop.run_until_complete(self.auto_reply_system.run_single_check())
                 loop.close()
-                
+
                 if results:
-                    print(f"✅ Auto-reply run: Sent {len(results)} intelligent replies")
+                    print(f"Auto-reply run: Sent {len(results)} intelligent replies")
                 else:
-                    print("📭 Auto-reply run: No new replies to process")
-                    
+                    print("Auto-reply run: No new replies to process")
+
             except Exception as e:
-                print(f"❌ Auto-reply check error: {e}")
+                print(f"Auto-reply check error: {e}")
         else:
-            print("⚠️ Auto-reply system not available")
+            print("Auto-reply system not available")
+
+    def _scan_for_bounces(self):
+        """Daily scan for bounced emails and add to suppression list"""
+        print(f"\n{datetime.now().strftime('%Y-%m-%d %H:%M')} - Running daily bounce/suppression scan...")
+
+        try:
+            from email_reply_monitor import EmailReplyMonitor
+
+            monitor = EmailReplyMonitor()
+            # Scan last 7 days for bounces
+            stats = monitor.process_gmail_replies(days_back=7)
+
+            print(f"Bounce scan complete:")
+            print(f"   - Emails checked: {stats.get('replies_checked', 0)}")
+            print(f"   - Bounces detected: {stats.get('bounces_detected', 0)}")
+            print(f"   - New suppressions: {stats.get('suppressions_added', 0)}")
+
+            # Log to database
+            self.storage.db.system_logs.insert_one({
+                'type': 'bounce_scan',
+                'timestamp': datetime.now(),
+                'stats': stats
+            })
+
+        except Exception as e:
+            print(f"Bounce scan error: {e}")
 
 async def main():
     """Main function for testing and running"""
