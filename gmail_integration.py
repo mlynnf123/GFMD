@@ -317,14 +317,97 @@ class GmailIntegration:
         
         return html_template
     
+    def get_emails(self, query: str = "in:inbox", max_results: int = 50) -> List[Dict]:
+        """
+        Get emails matching a query (used for bounce/reply detection)
+
+        Args:
+            query: Gmail search query (e.g., 'to:me newer_than:1d')
+            max_results: Maximum number of emails to return
+
+        Returns:
+            List of email data with from, subject, body, id, date fields
+        """
+        try:
+            if not self.service:
+                logger.warning("Gmail service not initialized")
+                return []
+
+            results = self.service.users().messages().list(
+                userId='me',
+                q=query,
+                maxResults=max_results
+            ).execute()
+
+            messages = results.get('messages', [])
+            email_list = []
+
+            for message in messages:
+                try:
+                    msg = self.service.users().messages().get(
+                        userId='me',
+                        id=message['id'],
+                        format='full'
+                    ).execute()
+
+                    headers = msg['payload'].get('headers', [])
+                    email_data = {
+                        'id': message['id'],
+                        'thread_id': msg.get('threadId'),
+                        'from': '',
+                        'to': '',
+                        'subject': '',
+                        'date': '',
+                        'body': '',
+                        'references': ''
+                    }
+
+                    # Parse headers
+                    for header in headers:
+                        name = header['name'].lower()
+                        value = header['value']
+
+                        if name == 'from':
+                            # Extract just the email address
+                            if '<' in value and '>' in value:
+                                email_data['from'] = value.split('<')[1].split('>')[0].strip()
+                            else:
+                                email_data['from'] = value.strip()
+                        elif name == 'to':
+                            email_data['to'] = value
+                        elif name == 'subject':
+                            email_data['subject'] = value
+                        elif name == 'date':
+                            email_data['date'] = value
+                        elif name == 'references':
+                            email_data['references'] = value
+                        elif name == 'in-reply-to':
+                            email_data['in_reply_to'] = value
+
+                    # Extract body
+                    email_data['body'] = self._extract_message_body(msg['payload'])
+
+                    email_list.append(email_data)
+
+                except Exception as e:
+                    logger.warning(f"Failed to process message {message['id']}: {e}")
+                    continue
+
+            logger.info(f"Retrieved {len(email_list)} emails matching query: {query}")
+            return email_list
+
+        except Exception as e:
+            logger.error(f"Failed to get emails: {e}")
+            return []
+
     def get_sent_emails(self, query: str = "from:me", max_results: int = 10) -> List[Dict]:
         """
         Get list of sent emails for tracking purposes
-        
+
         Args:
             query: Gmail search query
             max_results: Maximum number of emails to return
-            
+
         Returns:
             List of email metadata
         """
@@ -474,23 +557,35 @@ class GmailIntegration:
             return None
     
     def _extract_message_body(self, payload: Dict) -> str:
-        """Extract text body from Gmail message payload"""
+        """Extract text body from Gmail message payload, including nested parts"""
         try:
-            # Check if message has parts (multipart)
-            if 'parts' in payload:
-                for part in payload['parts']:
-                    if part['mimeType'] == 'text/plain':
-                        data = part['body'].get('data')
-                        if data:
-                            return base64.urlsafe_b64decode(data).decode('utf-8')
-            
-            # Check if message body is directly in payload
-            elif payload.get('body', {}).get('data'):
-                data = payload['body']['data']
-                return base64.urlsafe_b64decode(data).decode('utf-8')
-            
-            return ""
-            
+            all_text = []
+
+            def extract_recursive(part):
+                """Recursively extract text from all parts"""
+                mime_type = part.get('mimeType', '')
+
+                # Direct body data
+                if part.get('body', {}).get('data'):
+                    try:
+                        data = part['body']['data']
+                        decoded = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+                        if decoded.strip():
+                            all_text.append(decoded)
+                    except Exception:
+                        pass
+
+                # Nested parts
+                if 'parts' in part:
+                    for subpart in part['parts']:
+                        extract_recursive(subpart)
+
+            # Start extraction from payload
+            extract_recursive(payload)
+
+            # Join all extracted text
+            return '\n'.join(all_text)
+
         except Exception as e:
             logger.error(f"Failed to extract message body: {e}")
             return ""

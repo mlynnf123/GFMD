@@ -197,13 +197,74 @@ class EmailReplyMonitor:
         except Exception as e:
             logger.error(f"❌ Failed to add {email} to suppression list: {e}")
 
+    def _extract_failed_recipient_from_bounce(self, content: str, subject: str) -> List[str]:
+        """
+        Extract failed recipient emails from a bounce message
+
+        Args:
+            content: Bounce message body
+            subject: Bounce message subject
+
+        Returns:
+            List of failed recipient emails
+        """
+        full_text = f"{subject}\n{content}"
+        failed_emails = set()
+
+        # Skip patterns - system emails and tracking codes
+        skip_patterns = [
+            'postmaster', 'mailer-daemon', 'mail-daemon', 'noreply', 'no-reply',
+            'solutions@gfmd', 'google.com', 'cafbhqf'  # Gmail tracking codes start with this
+        ]
+
+        # Look for emails in angle brackets (most reliable for bounce messages)
+        bracket_pattern = r'<([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>'
+        matches = re.findall(bracket_pattern, full_text, re.IGNORECASE)
+        for match in matches:
+            email = match.lower().strip()
+            if not any(skip in email for skip in skip_patterns):
+                failed_emails.add(email)
+
+        # Additional patterns for bounce messages
+        patterns = [
+            r'delivery to the following recipient[s]? failed[:\s]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+            r'failed recipient[:\s]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+            r'the email account.*?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}).*?does not exist',
+            r'address rejected[:\s]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+            r'original-recipient[:\s]+.*?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+            r'final-recipient[:\s]+.*?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+            r'(?:to|recipient)[:\s]+<?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>?',
+        ]
+
+        for pattern in patterns:
+            matches = re.findall(pattern, full_text, re.IGNORECASE | re.MULTILINE)
+            for match in matches:
+                email = match.lower().strip()
+                if not any(skip in email for skip in skip_patterns):
+                    failed_emails.add(email)
+
+        return list(failed_emails)
+
+    def _is_system_email(self, email: str) -> bool:
+        """Check if email is a system/automated email that shouldn't be suppressed"""
+        if not email:
+            return True
+        email_lower = email.lower()
+        system_patterns = [
+            'postmaster', 'mailer-daemon', 'mail-daemon', 'noreply', 'no-reply',
+            'donotreply', 'do-not-reply', 'bounce', 'notifications@', 'alert@',
+            'team@', 'hello@', 'news@', 'newsletter@', 'updates@', 'info@mongodb',
+            'railway.app', 'vercel.com', 'github.com', 'google.com', 'gfmd.com'
+        ]
+        return any(pattern in email_lower for pattern in system_patterns)
+
     def process_gmail_replies(self, days_back: int = 1) -> Dict[str, int]:
         """
         Check Gmail for new replies and process them
-        
+
         Args:
             days_back: How many days back to check for replies
-            
+
         Returns:
             Dict with processing stats
         """
@@ -213,22 +274,53 @@ class EmailReplyMonitor:
             'bounces_detected': 0,
             'complaints_detected': 0
         }
-        
+
         try:
             # Get recent emails (replies to our outbound emails)
             query = f'to:me newer_than:{days_back}d'
             emails = self.gmail.get_emails(query=query, max_results=100)
-            
+
             for email in emails:
                 stats['replies_checked'] += 1
-                
+
                 sender_email = email.get('from', '')
                 subject = email.get('subject', '')
                 content = email.get('body', '')
-                
-                # Analyze the email content
+
+                # Skip if sender is a system email
+                if self._is_system_email(sender_email):
+                    # Check if this is a bounce - try to extract failed recipients
+                    analysis = self.analyze_email_content(content, subject)
+
+                    if analysis['response_type'] == 'bounce':
+                        failed_recipients = self._extract_failed_recipient_from_bounce(content, subject)
+
+                        for failed_recipient in failed_recipients:
+                            if failed_recipient and not self._is_system_email(failed_recipient):
+                                # Suppress the failed recipient, not the postmaster
+                                source_data = {
+                                    'email_id': email.get('id'),
+                                    'subject': subject,
+                                    'received_at': email.get('date'),
+                                    'bounce_from': sender_email,
+                                    'analysis': analysis
+                                }
+
+                                self.add_to_suppression_list(
+                                    failed_recipient,
+                                    'Email delivery failed - bounce detected',
+                                    source_data
+                                )
+
+                                stats['suppressions_added'] += 1
+                                stats['bounces_detected'] += 1
+                                logger.info(f"Bounce detected: {failed_recipient} (from {sender_email})")
+
+                    continue  # Skip further processing for system emails
+
+                # Analyze the email content for human replies
                 analysis = self.analyze_email_content(content, subject)
-                
+
                 if analysis['should_suppress']:
                     # Add to suppression list
                     source_data = {
@@ -237,31 +329,34 @@ class EmailReplyMonitor:
                         'received_at': email.get('date'),
                         'analysis': analysis
                     }
-                    
+
                     self.add_to_suppression_list(
-                        sender_email, 
-                        analysis['suppression_reason'], 
+                        sender_email,
+                        analysis['suppression_reason'],
                         source_data
                     )
-                    
+
                     stats['suppressions_added'] += 1
-                    
+
                     if analysis['response_type'] == 'bounce':
                         stats['bounces_detected'] += 1
                     elif analysis['response_type'] == 'complaint':
                         stats['complaints_detected'] += 1
-                
+
                 # Record the reply in interactions
-                self.storage.record_email_reply(
-                    message_id=email.get('references', ''),  # Link to original email
-                    reply_text=content[:500]  # Store first 500 chars
-                )
-            
-            logger.info(f"📧 Processed {stats['replies_checked']} replies, added {stats['suppressions_added']} suppressions")
+                try:
+                    self.storage.record_email_reply(
+                        message_id=email.get('references', ''),
+                        reply_text=content[:500] if content else ''
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to record reply: {e}")
+
+            logger.info(f"Processed {stats['replies_checked']} replies, added {stats['suppressions_added']} suppressions")
             return stats
-            
+
         except Exception as e:
-            logger.error(f"❌ Error processing Gmail replies: {e}")
+            logger.error(f"Error processing Gmail replies: {e}")
             return stats
 
     def check_suppression_status(self, email: str) -> bool:
