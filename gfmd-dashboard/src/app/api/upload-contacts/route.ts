@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 
+// Increase timeout for large file uploads
+export const maxDuration = 60; // 60 seconds max
+
 const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING ||
   'mongodb+srv://solutions-account:GFMDgfmd2280%40%40@cluster0.hdejtab.mongodb.net/?appName=Cluster0';
 
