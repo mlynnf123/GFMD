@@ -46,7 +46,7 @@ export async function GET() {
     const totalSequences = await sequencesCollection.countDocuments({});
     const activeSequences = await sequencesCollection.countDocuments({ status: 'active' });
     const completedSequences = await sequencesCollection.countDocuments({ status: 'completed' });
-    const repliedSequences = await sequencesCollection.countDocuments({ status: 'replied' });
+    // Note: repliedSequences not used - using interactions-based reply count instead
     
     // Get bounce and suppression metrics
     const totalSuppressed = await suppressionCollection.countDocuments({ status: 'active' });
@@ -62,21 +62,17 @@ export async function GET() {
     ]).toArray();
     const emailsSentCount = totalEmailsSent.length > 0 ? totalEmailsSent[0].totalSent : 0;
     
-    // Get actual human replies (excluding bounces/system messages)
-    const humanReplies = await interactionsCollection.countDocuments({
+    // Get unique contacts who have replied (excluding bounces/system messages)
+    const uniqueRepliers = await interactionsCollection.distinct('sender_email', {
       type: 'auto_reply',
-      sender_email: { 
-        $not: { $regex: 'postmaster|mailer-daemon|mail-daemon', $options: 'i' }
-      },
-      original_content: { $ne: '' }
+      sender_email: {
+        $not: { $regex: 'postmaster|mailer-daemon|mail-daemon|noreply|no-reply|donotreply', $options: 'i' }
+      }
     });
-    
-    // Calculate true response rate (human replies / (emails sent - bounces))
-    const deliveredEmails = emailsSentCount - bouncedEmails;
-    const trueResponseRate = deliveredEmails > 0 ? ((humanReplies / deliveredEmails) * 100) : 0;
-    
-    // Legacy response rate for backward compatibility
-    const responseRate = totalSequences > 0 ? ((repliedSequences / totalSequences) * 100) : 0;
+    const replyCount = uniqueRepliers.length;
+
+    // Reply rate: unique repliers / total sequences contacted
+    const replyRate = totalSequences > 0 ? ((replyCount / totalSequences) * 100) : 0;
     
     // Get recent sequences for activity table
     const recentSequences = await sequencesCollection
@@ -278,18 +274,16 @@ export async function GET() {
     const dashboardData = {
       totalSales: actualTotalSales,
       salesChange: parseFloat(actualSalesChange.toFixed(1)),
-      convertedLeads: repliedSequences,
-      leadsChange: Math.max(0, repliedSequences - 3),
-      replyRate: parseFloat(responseRate.toFixed(1)),
+      convertedLeads: replyCount,
+      leadsChange: Math.max(0, replyCount - 3),
+      replyRate: parseFloat(replyRate.toFixed(1)),
+      replyCount: replyCount,
       openRate: actualOpenRate,
-      
-      // New KPI metrics
+
+      // Email metrics
       totalEmailsSent: emailsSentCount,
       bouncedEmails,
       totalSuppressed,
-      humanReplies,
-      trueResponseRate: parseFloat(trueResponseRate.toFixed(1)),
-      deliveredEmails,
       
       totalSequences,
       activeSequences,
@@ -317,6 +311,7 @@ export async function GET() {
       convertedLeads: 0,
       leadsChange: 0,
       replyRate: 0,
+      replyCount: 0,
       openRate: 0,
       totalSequences: 0,
       activeSequences: 0,
@@ -324,9 +319,6 @@ export async function GET() {
       totalEmailsSent: 0,
       bouncedEmails: 0,
       totalSuppressed: 0,
-      humanReplies: 0,
-      trueResponseRate: 0,
-      deliveredEmails: 0,
       emailPerformance: [],
       revenueOverTime: [],
       leadActivity: [],

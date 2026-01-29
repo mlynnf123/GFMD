@@ -17,18 +17,16 @@ export interface DashboardData {
   convertedLeads: number;
   leadsChange: number;
   replyRate: number;
+  replyCount?: number;
   openRate: number;
   totalSequences: number;
   activeSequences: number;
   completedSequences: number;
   
-  // New KPI metrics
+  // Email metrics
   totalEmailsSent?: number;
   bouncedEmails?: number;
   totalSuppressed?: number;
-  humanReplies?: number;
-  trueResponseRate?: number;
-  deliveredEmails?: number;
   emailPerformance: {
     date: string;
     sent: number;
