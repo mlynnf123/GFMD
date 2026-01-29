@@ -152,7 +152,7 @@ export function Dashboard() {
             className="px-4 py-2 rounded font-normal text-white hover:opacity-90"
             style={{backgroundColor: '#4e2780'}}
           >
-            Upload Contacts
+            Upload CSV
           </button>
           <button
             onClick={() => setSuppressionModalOpen(true)}

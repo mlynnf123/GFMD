@@ -97,9 +97,9 @@ export function UploadContactsModal({ isOpen, onClose }: UploadContactsModalProp
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
         <div className="flex justify-between items-center p-6" style={{borderBottom: '1px solid #efebe2'}}>
           <div>
-            <h2 className="text-2xl font-normal" style={{color: '#272030'}}>Upload Contacts</h2>
+            <h2 className="text-2xl font-normal" style={{color: '#272030'}}>Upload CSV</h2>
             <p className="text-sm font-light mt-1" style={{color: '#272030'}}>
-              Import contacts from a CSV file
+              Import contacts from a CSV file to add them to your outreach list
             </p>
           </div>
           <button
@@ -260,45 +260,60 @@ export function UploadContactsModal({ isOpen, onClose }: UploadContactsModalProp
                 </CardHeader>
                 <CardContent>
                   {result.success ? (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
+                      {result.imported > 0 && (
+                        <p className="font-light" style={{color: '#272030'}}>
+                          Successfully added {result.imported} new contact{result.imported !== 1 ? 's' : ''} to the database.
+                          {result.sequencesStarted > 0
+                            ? ` Email sequences have been started for ${result.sequencesStarted} contact${result.sequencesStarted !== 1 ? 's' : ''}.`
+                            : ' Contacts are saved and ready for outreach.'}
+                        </p>
+                      )}
+                      {result.imported === 0 && result.duplicates > 0 && (
+                        <p className="font-light" style={{color: '#272030'}}>
+                          No new contacts were added. All {result.duplicates} contact{result.duplicates !== 1 ? 's' : ''} already exist in the database.
+                        </p>
+                      )}
+
                       <div className="grid grid-cols-2 gap-4">
                         <div className="p-3 rounded" style={{backgroundColor: '#efebe2'}}>
                           <p className="text-2xl font-normal" style={{color: '#4e2780'}}>{result.imported}</p>
-                          <p className="text-sm font-light" style={{color: '#272030'}}>Contacts Imported</p>
+                          <p className="text-sm font-light" style={{color: '#272030'}}>New Contacts Added</p>
                         </div>
                         <div className="p-3 rounded" style={{backgroundColor: '#efebe2'}}>
                           <p className="text-2xl font-normal" style={{color: '#272030'}}>{result.duplicates}</p>
-                          <p className="text-sm font-light" style={{color: '#272030'}}>Duplicates Skipped</p>
+                          <p className="text-sm font-light" style={{color: '#272030'}}>Already Existed</p>
                         </div>
                         {result.sequencesStarted > 0 && (
-                          <div className="p-3 rounded" style={{backgroundColor: '#efebe2'}}>
+                          <div className="p-3 rounded col-span-2" style={{backgroundColor: '#efebe2'}}>
                             <p className="text-2xl font-normal" style={{color: '#4e2780'}}>{result.sequencesStarted}</p>
-                            <p className="text-sm font-light" style={{color: '#272030'}}>Sequences Started</p>
-                          </div>
-                        )}
-                        {result.errors > 0 && (
-                          <div className="p-3 rounded" style={{backgroundColor: '#efebe2'}}>
-                            <p className="text-2xl font-normal" style={{color: '#ef4444'}}>{result.errors}</p>
-                            <p className="text-sm font-light" style={{color: '#272030'}}>Errors</p>
+                            <p className="text-sm font-light" style={{color: '#272030'}}>Email Sequences Started</p>
                           </div>
                         )}
                       </div>
 
-                      {result.errorDetails && result.errorDetails.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-sm font-normal mb-2" style={{color: '#272030'}}>Error Details:</p>
-                          <div className="text-sm font-light p-3 rounded max-h-32 overflow-auto" style={{backgroundColor: '#efebe2', color: '#272030'}}>
-                            {result.errorDetails.map((err, i) => (
-                              <p key={i}>{err}</p>
-                            ))}
-                          </div>
+                      {result.errors > 0 && (
+                        <div className="p-3 rounded" style={{backgroundColor: '#fef2f2', borderLeft: '3px solid #ef4444'}}>
+                          <p className="font-normal" style={{color: '#ef4444'}}>{result.errors} error{result.errors !== 1 ? 's' : ''} occurred</p>
+                          {result.errorDetails && result.errorDetails.length > 0 && (
+                            <div className="text-sm font-light mt-2 max-h-24 overflow-auto" style={{color: '#272030'}}>
+                              {result.errorDetails.map((err, i) => (
+                                <p key={i}>{err}</p>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   ) : (
-                    <p className="font-light" style={{color: '#272030'}}>
-                      {result.error || 'An error occurred while processing the file.'}
-                    </p>
+                    <div className="space-y-3">
+                      <p className="font-normal" style={{color: '#ef4444'}}>
+                        Upload failed
+                      </p>
+                      <p className="font-light" style={{color: '#272030'}}>
+                        {result.error || 'An error occurred while processing the file. Please check your CSV format and try again.'}
+                      </p>
+                    </div>
                   )}
                 </CardContent>
               </Card>
