@@ -52,9 +52,6 @@ export function HeroStats({ data, onActiveSequencesClick }: Props) {
           <div className="text-2xl font-normal" style={{color: '#272030'}}>
             {data.totalEmailsSent || 0}
           </div>
-          <p className="text-xs font-light mt-1" style={{color: '#272030'}}>
-            To law enforcement
-          </p>
         </CardContent>
       </Card>
       
