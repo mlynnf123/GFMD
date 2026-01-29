@@ -424,7 +424,7 @@ class CompleteSequenceAutomation:
             print("   - Special runs at 9 AM, 1 PM, 5 PM CST")
             print("   - Daily contact addition: Monday-Friday at 8 AM CST (10 new contacts)")
             print("   - Auto-reply monitoring: Every 2 hours")
-            print("   - Daily bounce scan: 6 AM CST")
+            print("   - Daily email scan (bounces + replies): 6 AM CST")
             print("   - Email timing: Every 2 business days")
             
             while True:
@@ -495,30 +495,62 @@ class CompleteSequenceAutomation:
             print("Auto-reply system not available")
 
     def _scan_for_bounces(self):
-        """Daily scan for bounced emails and add to suppression list"""
-        print(f"\n{datetime.now().strftime('%Y-%m-%d %H:%M')} - Running daily bounce/suppression scan...")
+        """Daily scan for bounces, replies, and suppression list updates"""
+        print(f"\n{datetime.now().strftime('%Y-%m-%d %H:%M')} - Running daily email scan (bounces + replies)...")
 
         try:
             from email_reply_monitor import EmailReplyMonitor
 
             monitor = EmailReplyMonitor()
-            # Scan last 7 days for bounces
+            # Scan last 7 days for bounces and replies
             stats = monitor.process_gmail_replies(days_back=7)
 
-            print(f"Bounce scan complete:")
+            print(f"Email scan complete:")
             print(f"   - Emails checked: {stats.get('replies_checked', 0)}")
             print(f"   - Bounces detected: {stats.get('bounces_detected', 0)}")
             print(f"   - New suppressions: {stats.get('suppressions_added', 0)}")
 
+            # Update sequences to 'replied' status based on interactions
+            replied_contacts = list(self.storage.db.interactions.distinct('sender_email', {
+                'type': 'auto_reply',
+                'sender_email': {
+                    '$not': {'$regex': 'postmaster|mailer-daemon|noreply|donotreply', '$options': 'i'}
+                }
+            }))
+
+            sequences_updated = 0
+            for email in replied_contacts:
+                result = self.storage.db.email_sequences.update_many(
+                    {'contact_email': email.lower(), 'status': 'active'},
+                    {'$set': {'status': 'replied', 'reply_received': True, 'replied_at': datetime.now()}}
+                )
+                sequences_updated += result.modified_count
+
+            if sequences_updated > 0:
+                print(f"   - Sequences marked as replied: {sequences_updated}")
+
+            # Get current reply stats
+            total_sequences = self.storage.db.email_sequences.count_documents({})
+            unique_repliers = len(replied_contacts)
+            reply_rate = (unique_repliers / total_sequences * 100) if total_sequences > 0 else 0
+
+            print(f"   - Total unique repliers: {unique_repliers}")
+            print(f"   - Current reply rate: {reply_rate:.1f}%")
+
             # Log to database
             self.storage.db.system_logs.insert_one({
-                'type': 'bounce_scan',
+                'type': 'daily_email_scan',
                 'timestamp': datetime.now(),
-                'stats': stats
+                'stats': {
+                    **stats,
+                    'sequences_marked_replied': sequences_updated,
+                    'unique_repliers': unique_repliers,
+                    'reply_rate': round(reply_rate, 1)
+                }
             })
 
         except Exception as e:
-            print(f"Bounce scan error: {e}")
+            print(f"Daily email scan error: {e}")
 
 async def main():
     """Main function for testing and running"""
