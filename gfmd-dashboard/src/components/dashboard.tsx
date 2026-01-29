@@ -8,6 +8,7 @@ import { SystemStatus } from './system-status';
 import { SequencesModal } from './sequences-modal';
 import { EmailHistoryModal } from './email-history-modal';
 import { SuppressionModal } from './suppression-modal';
+import { UploadContactsModal } from './upload-contacts-modal';
 
 // Define the types for our GFMD data
 export interface DashboardData {
@@ -67,6 +68,7 @@ export function Dashboard() {
   const [sequencesModalOpen, setSequencesModalOpen] = useState(false);
   const [emailHistoryModalOpen, setEmailHistoryModalOpen] = useState(false);
   const [suppressionModalOpen, setSuppressionModalOpen] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<{email: string, id: string} | null>(null);
 
   const fetchData = async () => {
@@ -148,9 +150,16 @@ export function Dashboard() {
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={() => setSuppressionModalOpen(true)}
+            onClick={() => setUploadModalOpen(true)}
             className="px-4 py-2 rounded font-normal text-white hover:opacity-90"
             style={{backgroundColor: '#4e2780'}}
+          >
+            Upload Contacts
+          </button>
+          <button
+            onClick={() => setSuppressionModalOpen(true)}
+            className="px-4 py-2 rounded font-normal hover:opacity-90"
+            style={{backgroundColor: '#efebe2', color: '#272030'}}
           >
             Suppression List
           </button>
@@ -194,6 +203,11 @@ export function Dashboard() {
       <SuppressionModal
         isOpen={suppressionModalOpen}
         onClose={() => setSuppressionModalOpen(false)}
+      />
+
+      <UploadContactsModal
+        isOpen={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
       />
       
       {/* Footer */}
