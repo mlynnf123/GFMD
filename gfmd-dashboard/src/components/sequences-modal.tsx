@@ -32,9 +32,10 @@ interface SequencesModalProps {
   isOpen: boolean;
   onClose: () => void;
   onContactClick: (contactEmail: string, contactId: string) => void;
+  campaign?: string;
 }
 
-export function SequencesModal({ isOpen, onClose, onContactClick }: SequencesModalProps) {
+export function SequencesModal({ isOpen, onClose, onContactClick, campaign }: SequencesModalProps) {
   const [sequences, setSequences] = useState<SequenceData[]>([]);
   const [contacts, setContacts] = useState<{[key: string]: ContactData}>({});
   const [loading, setLoading] = useState(true);
@@ -48,7 +49,8 @@ export function SequencesModal({ isOpen, onClose, onContactClick }: SequencesMod
   const fetchSequences = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/sequences');
+      const params = campaign ? `?campaign=${campaign}` : '';
+      const response = await fetch(`/api/sequences${params}`);
       const data = await response.json();
       setSequences(data.sequences || []);
       setContacts(data.contacts || {});

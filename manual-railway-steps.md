@@ -27,8 +27,8 @@ Go to your service → Settings → Environment Variables
 Add these variables:
 ```
 ENVIRONMENT=production
-MONGODB_CONNECTION_STRING=mongodb+srv://solutions-account:GFMDgfmd2280%40%40@cluster0.hdejtab.mongodb.net/?appName=Cluster0
-MONGODB_PASSWORD=GFMDgfmd2280@@
+MONGODB_CONNECTION_STRING=mongodb+srv://<username>:<password>@<cluster>/
+MONGODB_PASSWORD=<database-password>
 GROQ_API_KEY=your_groq_api_key_here
 GMAIL_CREDENTIALS_PATH=/app/gmail_credentials.json
 TOKENIZERS_PARALLELISM=false

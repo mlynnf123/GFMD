@@ -14,9 +14,12 @@ env/
 !package.json
 !package-lock.json
 !tsconfig.json
+!recovery/deployed-release-manifest.json
 .env
 .env.local
 .env.production
+.env.*
+!.env.example
 gmail_token.json
 google_sheets_credentials.json
 google_search_credentials.json
@@ -51,6 +54,15 @@ dashboard/node_modules/
 dashboard/out/
 dashboard/.env.local
 dashboard/tsconfig.tsbuildinfo
+gfmd-dashboard/.next/
+gfmd-dashboard/node_modules/
+gfmd-dashboard/out/
+gfmd-dashboard/tsconfig.tsbuildinfo
+gfmd-dashboard/next-env.d.ts
+recovery/private/
+*.pem
+*.key
+*token.candidate*
 
 # macOS
 .DS_Store

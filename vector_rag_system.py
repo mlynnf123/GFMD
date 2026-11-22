@@ -271,22 +271,76 @@ class VectorRAGSystem:
         
         return insights
     
+    def get_relevant_context_for_campaign(self, query: str, campaign: str = "narc_gone",
+                                          context_types: List[str] = None,
+                                          max_context_length: int = 1000) -> str:
+        """Get relevant context filtered by campaign tags"""
+        context_types = context_types or ["product_info", "pain_points"]
+        all_context = []
+
+        for doc_type in context_types:
+            results = self.vector_search(query, doc_type=doc_type, limit=3)
+
+            for result in results:
+                tags = result.get("tags", [])
+                # Filter results to only include docs tagged for this campaign
+                if campaign == "spectrum":
+                    if "spectrum" in tags:
+                        all_context.append(result.get("content", ""))
+                elif campaign == "centrifuge":
+                    if any(t in tags for t in ["centrifuge", "hospital_lab", "lab_equipment"]):
+                        all_context.append(result.get("content", ""))
+                else:
+                    # narc_gone -- exclude centrifuge-tagged docs
+                    if not any(t in tags for t in ["centrifuge", "hospital_lab", "lab_equipment", "spectrum"]):
+                        all_context.append(result.get("content", ""))
+
+        combined_context = " ".join(c for c in all_context if len(c) > 200)
+        if len(combined_context) > max_context_length:
+            combined_context = combined_context[:max_context_length] + "..."
+
+        return combined_context
+
     def populate_knowledge_base(self):
         """Populate the vector database with GFMD knowledge"""
-        
-        print("📚 Populating Vector RAG Database...")
-        
+
+        print("Populating Vector RAG Database...")
+
         # Knowledge documents to process
+        # Use relative paths so this works locally and on Railway
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        kb_dir = os.path.join(base_dir, "knowledge_base")
+
         documents = [
             {
-                "file": "/Users/merandafreiner/GFMD/GFMD/knowledge_base/gfmd_narc_gone_findings.md",
+                "file": os.path.join(kb_dir, "gfmd_narc_gone_findings.md"),
                 "doc_type": "product_info",
                 "tags": ["narc_gone", "product_specs", "testing", "compliance", "benefits"]
             },
             {
-                "file": "/Users/merandafreiner/GFMD/GFMD/knowledge_base/law_enforcement_pain_points.md",
-                "doc_type": "pain_points", 
+                "file": os.path.join(kb_dir, "law_enforcement_pain_points.md"),
+                "doc_type": "pain_points",
                 "tags": ["law_enforcement", "challenges", "costs", "compliance", "accessibility"]
+            },
+            {
+                "file": os.path.join(kb_dir, "gfmd_centrifuge_product.md"),
+                "doc_type": "product_info",
+                "tags": ["centrifuge", "lab_equipment", "hospital_lab", "product_specs", "benefits"]
+            },
+            {
+                "file": os.path.join(kb_dir, "hospital_lab_pain_points.md"),
+                "doc_type": "pain_points",
+                "tags": ["centrifuge", "hospital_lab", "lab_equipment", "challenges", "costs"]
+            },
+            {
+                "file": os.path.join(kb_dir, "gfmd_spectrum_product.md"),
+                "doc_type": "product_info",
+                "tags": ["spectrum", "snf_ltc", "pcr", "lab_testing", "product_specs", "benefits"]
+            },
+            {
+                "file": os.path.join(kb_dir, "snf_ltc_pain_points.md"),
+                "doc_type": "pain_points",
+                "tags": ["spectrum", "snf_ltc", "pcr", "lab_testing", "challenges", "infection_control"]
             }
         ]
         

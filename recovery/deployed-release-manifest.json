@@ -1,0 +1,381 @@
+{
+  "release": "2026-11-22-restoration",
+  "files": [
+    {
+      "path": ".dockerignore",
+      "sha256": "6cd81099f290d1f8c1528dc55b76ccf23116e68aff921774301d7b1c8828c542",
+      "bytes": 826,
+      "sha256_lf": "0ac875b21ba3f206f99ba20488ce5de86bd09c48196c6912da268530533e9f82"
+    },
+    {
+      "path": "Dockerfile",
+      "sha256": "5f637819e3f4fb85cca6184b92a3fd872f41f27072d2d5f4bfc5f68e2a2627cd",
+      "bytes": 1240,
+      "sha256_lf": "c0bbcfc8b1596d586bb6c3baa2fc6b43f0b03e5206b12e1b16d5f89f85c96a6d"
+    },
+    {
+      "path": "Dockerfile.railway",
+      "sha256": "94fb6deded91111339f1b5f9d16990e32788dd342873becf11bdab31ec279c99",
+      "bytes": 1089,
+      "sha256_lf": "94fb6deded91111339f1b5f9d16990e32788dd342873becf11bdab31ec279c99"
+    },
+    {
+      "path": "ai_auto_reply_system.py",
+      "sha256": "ef04813464cf653410d4fc46d2c22558d5509a0830e7d8add8e644cc65feed8e",
+      "bytes": 45638,
+      "sha256_lf": "ef04813464cf653410d4fc46d2c22558d5509a0830e7d8add8e644cc65feed8e"
+    },
+    {
+      "path": "business_day_utils.py",
+      "sha256": "fd6fce6a920550bac580bc94e8c0e4b3c430ff1351b564d9a9d9d0963d35cf0a",
+      "bytes": 6697,
+      "sha256_lf": "4d523003caf9f41630c38c6c740bcdea3d95eea9cedb5d45513ada7e372273ef"
+    },
+    {
+      "path": "complete_sequence_automation.py",
+      "sha256": "0f66a886e0933e7561203954739dce17212103816d041e75d9b3821593184e06",
+      "bytes": 46614,
+      "sha256_lf": "0f66a886e0933e7561203954739dce17212103816d041e75d9b3821593184e06"
+    },
+    {
+      "path": "email_reply_monitor.py",
+      "sha256": "87128f59168e42b8e85eed17e7106a1cb57bc316eff11b5c16da7befd00965bd",
+      "bytes": 20036,
+      "sha256_lf": "34200863b6a3a81507065fd64dc975c3b5f2ffc0520dc4cc047257b8b6f9d41a"
+    },
+    {
+      "path": "email_sequence_templates.py",
+      "sha256": "d13a0be414307637f9d6194ee87038bf9b4bf48c6398553872d2212c952e1229",
+      "bytes": 16843,
+      "sha256_lf": "d13a0be414307637f9d6194ee87038bf9b4bf48c6398553872d2212c952e1229"
+    },
+    {
+      "path": "email_styling_rules.py",
+      "sha256": "427abbf7cc7353d1a0da6bfd539d5673a1da9ab568fcce0cbb55a6789993d114",
+      "bytes": 10251,
+      "sha256_lf": "ebfc86d421903ffdbfb9a950901e0f13fbe578ed8e502db2f0b30c2fbce3d917"
+    },
+    {
+      "path": "gmail_integration.py",
+      "sha256": "153b78f2a52101db4367af55e82e610eb0079a9d72cfe5fd60be0b226b0549ef",
+      "bytes": 28219,
+      "sha256_lf": "153b78f2a52101db4367af55e82e610eb0079a9d72cfe5fd60be0b226b0549ef"
+    },
+    {
+      "path": "groq_base_agent.py",
+      "sha256": "ff244e0836aa06a718737e20d7b9058332a9d23621e21acaed78c776bf4142f3",
+      "bytes": 5135,
+      "sha256_lf": "02347ff6f17b26cf13d3bd7b394c6a9fb94628984049219f02cc743b7c5c8aaf"
+    },
+    {
+      "path": "groq_email_composer_agent.py",
+      "sha256": "3857ccefd5a62f39981b4a138f01a22beb753cd55d8b14a72cbdbfc97a553e8a",
+      "bytes": 38667,
+      "sha256_lf": "bf8109084af8f0e323f57aa64cf662e94e007c9e3ea861a05c5ca135e502f79b"
+    },
+    {
+      "path": "health_server.py",
+      "sha256": "f50ef4a648c5544ec27f2d595c492cc5d9c351c738504343018ec25e5574fe1c",
+      "bytes": 4391,
+      "sha256_lf": "c4f50e673a6ebd2dba232f20a64bb243aa2890d7885c6ee6c84da50832eead44"
+    },
+    {
+      "path": "knowledge_base/gfmd_centrifuge_product.md",
+      "sha256": "af8f372ec96732dec189ebbb9e576be210d35ddf922cd3ae26c09a8999568b9c",
+      "bytes": 7187,
+      "sha256_lf": "af8f372ec96732dec189ebbb9e576be210d35ddf922cd3ae26c09a8999568b9c"
+    },
+    {
+      "path": "knowledge_base/gfmd_narc_gone_findings.md",
+      "sha256": "fbf34bc4da83f1e304d9350a3e721305a804dde4d7524853fce094ec0fadcfc0",
+      "bytes": 5588,
+      "sha256_lf": "f8959ccd3854d1096e6b8ce44d38dbb7a0ac5a033d404858ff0d076f8ba4c651"
+    },
+    {
+      "path": "knowledge_base/gfmd_spectrum_product.md",
+      "sha256": "366616bb9f3eb3503dd75324a7a3a7220f8f5c3ef40f665c9c536ab8fd6a741c",
+      "bytes": 3311,
+      "sha256_lf": "366616bb9f3eb3503dd75324a7a3a7220f8f5c3ef40f665c9c536ab8fd6a741c"
+    },
+    {
+      "path": "knowledge_base/hospital_lab_pain_points.md",
+      "sha256": "f8cb5f3ad5007d617933fb24ed98d1a516f37d32131a17a1c20894d490950e92",
+      "bytes": 2307,
+      "sha256_lf": "f8cb5f3ad5007d617933fb24ed98d1a516f37d32131a17a1c20894d490950e92"
+    },
+    {
+      "path": "knowledge_base/law_enforcement_pain_points.md",
+      "sha256": "66c0eecd0d29349a355a64c0d12e9e1bb48ef03350b1f562db9c48831c77ccd2",
+      "bytes": 3918,
+      "sha256_lf": "45cdd4e2c60c161c513ef8f1831443ba32e5f9e9c5b0511e8c01ba818a2237f5"
+    },
+    {
+      "path": "knowledge_base/snf_ltc_pain_points.md",
+      "sha256": "4419ecde472443539190826065642f41ba54da450fa10f0bdb15a5c263830c44",
+      "bytes": 2281,
+      "sha256_lf": "4419ecde472443539190826065642f41ba54da450fa10f0bdb15a5c263830c44"
+    },
+    {
+      "path": "mongodb_storage.py",
+      "sha256": "5933530d2db9a1b83382879bf6756ea3dda3923afc525a6e801eb008b03719b8",
+      "bytes": 22139,
+      "sha256_lf": "155d4162f8ff74b59f500082f6b78dd10ce1761d3d366e02f70381dab3c89f80"
+    },
+    {
+      "path": "production_readiness.py",
+      "sha256": "33c3bdb2bb7aec48c2f28ce11e7f8c29ba0bc8a5473d63477ad6d18ba9f92d2a",
+      "bytes": 2931,
+      "sha256_lf": "33c3bdb2bb7aec48c2f28ce11e7f8c29ba0bc8a5473d63477ad6d18ba9f92d2a"
+    },
+    {
+      "path": "requirements.txt",
+      "sha256": "417a0ea0488053b3143c26ea7f15765e07f91b841fbf77eba89f24442d993890",
+      "bytes": 579,
+      "sha256_lf": "60489f96577a90ad0c242296ebd05a9c059aa77b8df5791f8c4330ba8668339d"
+    },
+    {
+      "path": "spectrum_ai.py",
+      "sha256": "7ef3c04290205e6914c062b51a3c3d9f9453a6fa79a96c1806ea4f706b22fda5",
+      "bytes": 7262,
+      "sha256_lf": "7ef3c04290205e6914c062b51a3c3d9f9453a6fa79a96c1806ea4f706b22fda5"
+    },
+    {
+      "path": "spectrum_campaign.py",
+      "sha256": "e91c8a0d445104217d4b1e6b7e8157fdbcb86e47f10bedfabd1d1c702a5cc285",
+      "bytes": 11612,
+      "sha256_lf": "e91c8a0d445104217d4b1e6b7e8157fdbcb86e47f10bedfabd1d1c702a5cc285"
+    },
+    {
+      "path": "spectrum_worker.py",
+      "sha256": "332a6673879265436083b8f6475293d2c8001e1f7ea90f1dd06919f70d8977aa",
+      "bytes": 12123,
+      "sha256_lf": "332a6673879265436083b8f6475293d2c8001e1f7ea90f1dd06919f70d8977aa"
+    },
+    {
+      "path": "vector_rag_system.py",
+      "sha256": "1ab3d5afa20b0db9c596b70ca3b1e84bee5e5f71e583b357fd148de233a1e918",
+      "bytes": 18113,
+      "sha256_lf": "1ab3d5afa20b0db9c596b70ca3b1e84bee5e5f71e583b357fd148de233a1e918"
+    }
+  ],
+  "active_deployment": "fbedf128-6a59-4343-b76d-f5d0bd224062",
+  "image_source_deployment": "d3435c53-c69b-46c0-850b-78d6528bcdd9",
+  "schema_version": 1,
+  "repository": "https://github.com/mlynnf123/GFMD",
+  "release_date": "2026-11-22",
+  "container_python": "3.11.18",
+  "dashboard": {
+    "deployment_id": "dpl_EVpRux7BADBddgwT9my2nbydGcgD",
+    "url": "https://gfmd-dashboard.vercel.app",
+    "repository_hygiene_changes": [
+      "Removed embedded MongoDB fallbacks from five active API routes; configured environment behavior is unchanged",
+      "Normalized checkout line endings and a trailing empty line"
+    ],
+    "source_files": [
+      {
+        "path": "gfmd-dashboard/INTEGRATION_SUMMARY.md",
+        "deployed_source_uid": "48b1953a00d506a06770066e98e142b114770c95",
+        "repository_sha256_lf": "59a01c4dea6c8fb66a142939826d18a3ddaa5d11f6be9c8deb4c6dd3b142962f"
+      },
+      {
+        "path": "gfmd-dashboard/README.md",
+        "deployed_source_uid": "16fce4b7c52feefedc3999630eb1c3d0c6659c09",
+        "repository_sha256_lf": "468f2cad8b4fdca3e1543e25c83ff8d229ea1040971cd7c695bc16c5ceb87094"
+      },
+      {
+        "path": "gfmd-dashboard/eslint.config.mjs",
+        "deployed_source_uid": "44d5bed565a8dd284af3e17f3b16a1c752008d0e",
+        "repository_sha256_lf": "870f1adccecf3051cbcd9fd307cef51d7633cf510979c181a81f4b1797273493"
+      },
+      {
+        "path": "gfmd-dashboard/next.config.ts",
+        "deployed_source_uid": "89327ac52fc9a00fb8b885afd6654f18e58b3156",
+        "repository_sha256_lf": "614bce25b089c3f19b1e17a6346c74b858034040154c6621e7d35303004767cc"
+      },
+      {
+        "path": "gfmd-dashboard/package-lock.json",
+        "deployed_source_uid": "3b6740e8b8c0ac249cb802c4ae80043f368bf52b",
+        "repository_sha256_lf": "0f0f50d5cdf024b21f1573a6c9968b9aefda843ac73b99c1fc3ecab4f81e1a50"
+      },
+      {
+        "path": "gfmd-dashboard/package.json",
+        "deployed_source_uid": "d34d055f81ccd49958c7ebbb6c941d83f2859830",
+        "repository_sha256_lf": "0e5278cb4283146c37fea165b9aa67b719b63c7c1e5d232cca126b8a734525f8"
+      },
+      {
+        "path": "gfmd-dashboard/postcss.config.mjs",
+        "deployed_source_uid": "8f8be689e9af58f80351df6e6b551146822f42a4",
+        "repository_sha256_lf": "dfac7ac2d86d326a0e5adb024e7943c181393ed17a5fcb8f0315b24c7da6ddde"
+      },
+      {
+        "path": "gfmd-dashboard/public/file.svg",
+        "deployed_source_uid": "fb380eeffe87d50b597383664c02982964d0d28c",
+        "repository_sha256_lf": "2b67812c325c199a02536cdbeea0c593a72f707d323b72ee3e08dbab06753bd4"
+      },
+      {
+        "path": "gfmd-dashboard/public/globe.svg",
+        "deployed_source_uid": "2eba23b01a46733bb8423e6d38ebf5f7e95abec5",
+        "repository_sha256_lf": "b614b9bf183925957661ac851498fe1d8029fd43a62fbfed86f9e2624a57e7cf"
+      },
+      {
+        "path": "gfmd-dashboard/public/next.svg",
+        "deployed_source_uid": "3f3e95622612b989c5bd6a03299a308c6f3c7e6b",
+        "repository_sha256_lf": "55995dfad6ecb4945a1e856ddca03c5e16aa5bf13fd21b4df6a74ae79357bcfc"
+      },
+      {
+        "path": "gfmd-dashboard/public/vercel.svg",
+        "deployed_source_uid": "cebb8852d58c8886be3e9051a26957f42bb82f1a",
+        "repository_sha256_lf": "f081337b2fee635b455b63275406a3e7f39d6a014e25ad90dab5a67e62a12ac4"
+      },
+      {
+        "path": "gfmd-dashboard/public/window.svg",
+        "deployed_source_uid": "54c48e0daa6caa317fe1b4c419007fd93e948db9",
+        "repository_sha256_lf": "644768c4aaeb4767bce293344eeb0c125fb804a94d801440424072202d85e3a1"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/api/contact-history/route.ts",
+        "deployed_source_uid": "c57eb07865cb1f15567242a00c44ed0b2f503569",
+        "repository_sha256_lf": "233df19c49245ab84113d4341d8b678a56bf673c73fe8a0723da6650c0b3c067"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/api/dashboard-data/route.ts",
+        "deployed_source_uid": "ca1e0aea570bebee82ff03877617a41021b2862a",
+        "repository_sha256_lf": "472d4013074e9566b646c7ae718bf9604b3263e87e31b0ba38af0bce9005ef6c"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/api/sequences/route.ts",
+        "deployed_source_uid": "7c89d33fe4b9a709554c79a94dbef1006577aa2e",
+        "repository_sha256_lf": "38dd197ce4790852ae8e4028287bff20935893e9cbccf96a91fde6f3c5fbf662"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/api/suppression-list/route.ts",
+        "deployed_source_uid": "3785d263e107eafc7e9728bb3dec4246d8f78be3",
+        "repository_sha256_lf": "c9c9d68840b9393968160fbe4a2d7423fa5d6a952faf963b1faa41ce501bc58b"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/api/upload-contacts/route.ts",
+        "deployed_source_uid": "d1233c550d97b6f989b4b89fd168fcded8275470",
+        "repository_sha256_lf": "19e44387c3adcf7214a546cb9862e43c30914b5e3041ff253336903b5ea27154"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/centrifuge/page.tsx",
+        "deployed_source_uid": "94839090de3306a1fca7a8830f8a2c4676aec597",
+        "repository_sha256_lf": "5b32870ca980f757f5dd10faf41d0307db8d6402d13f1430759e1e41254826fe"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/favicon.ico",
+        "deployed_source_uid": "9ecfcc8f0ead0bf3d2d7c39e084b88f41cc89a2e",
+        "repository_sha256_lf": "093705051dbcd8e9def5d2867f9fcb52f9dbb3a944b6b527a25d45597069549f"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/globals.css",
+        "deployed_source_uid": "54e333e3a2fba9300ce050eeb0941688c7024976",
+        "repository_sha256_lf": "cbfe509bb60eeb02cd810190f7ffa8f1fcf466b7b4a06ef3dd8bf0891d8e6970"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/layout.tsx",
+        "deployed_source_uid": "ce8e34de59e22665f71cfad19e91859c837ea557",
+        "repository_sha256_lf": "a6b41939fd5bdd196d3e47ed77cda5320961f027c496b8c086f3c2b04cf4b6c2"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/page.tsx",
+        "deployed_source_uid": "a865d17bd9320ee48d2ed2e7be5e9873e4cb5938",
+        "repository_sha256_lf": "48f4262172704305972454d3bf9215b7f1bc71fa108273952d7b1d5374bb9d96"
+      },
+      {
+        "path": "gfmd-dashboard/src/app/spectrum/page.tsx",
+        "deployed_source_uid": "27a3f784de8075e986ec06aae237ed58412d49cc",
+        "repository_sha256_lf": "0dac1ac97ff2aa10a82659efeb2ac50497d0ea7c582da129b05c303b879300a1"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/activity-table.tsx",
+        "deployed_source_uid": "a46f73493b2cdf54fb4baea0550a68a848e845df",
+        "repository_sha256_lf": "e83711507eefaada3390cb954ee79a9a6e0af1d407d8d27059b429b8429d0bc5"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/centrifuge-dashboard.tsx",
+        "deployed_source_uid": "8985e666668648e37e8ee71aa4bdb1ea5957c9a2",
+        "repository_sha256_lf": "57c13a1a07960d0f9c8bbed007538e363a2404c8f285f79841a483788164abee"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/charts.tsx",
+        "deployed_source_uid": "3a31e14d39f0a217b4145c31bbc5de22397f29fe",
+        "repository_sha256_lf": "ea39fdcc91a25db395d9d07ab06a186c2cc8158ee08126f75a0074f2b6fb18d3"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/dashboard.tsx",
+        "deployed_source_uid": "8c92df847ebe73e0564406c32c8208d2c1dd3702",
+        "repository_sha256_lf": "a00c9243b7091e32ef1840ae3d10bb52a68cfc12cd2e2e1ffb46f1474c4f80e7"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/email-history-modal.tsx",
+        "deployed_source_uid": "3604ae9e7dbc6d30132c2eb5d4dab647cd8946ae",
+        "repository_sha256_lf": "2526365f9814825c6181d5f70d89a0f1866e40cb092463c91f9af3e02e37c191"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/hero-stats.tsx",
+        "deployed_source_uid": "fdcc8754b190f8c1fb06b2174ed22d3642e7f16b",
+        "repository_sha256_lf": "7bb466aad6941a39a212045b6265f3038826bda0fccfbca7adfcd4b407a2c694"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/nav-header.tsx",
+        "deployed_source_uid": "03f63555ae306488075947c146a490a054ed85f8",
+        "repository_sha256_lf": "a038d32fd62b2441a76941ed6c19437501b13ff458377b33f6e4485cbf94d18f"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/sequences-modal.tsx",
+        "deployed_source_uid": "63c67f601393753c32ed946b60919362130cdc24",
+        "repository_sha256_lf": "70067a9274d24e73c02fa071b76d49e28ab569d99979a6a2b12c58d13a076edf"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/spectrum-dashboard.tsx",
+        "deployed_source_uid": "3f18eb53a8e644b5fd88dd49d28acb185bdf9fc9",
+        "repository_sha256_lf": "1c4b05f9aec0a8fa7b37c667a299a581e8894466a88a5c89d365b8b38e04b089"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/suppression-modal.tsx",
+        "deployed_source_uid": "1ae6520ea4aca1b4684d026cd98f2577567f1285",
+        "repository_sha256_lf": "e29f4e478a6fe8dbccb97d08314752dc1e21b0981749f433cf31cf45f715f0a3"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/system-status.tsx",
+        "deployed_source_uid": "f9baf8205ae5548ff2f12f54f78bfaea09388f09",
+        "repository_sha256_lf": "718bc9f99ee9613c6ffe1f4dce9c1a879b01a992855c676dfa624e39f625d3d8"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/ui/card.tsx",
+        "deployed_source_uid": "3ed4217bd0904872cd2100e925a3e860fd1c9f83",
+        "repository_sha256_lf": "72d8d7a675c5add299eb927921ff634cfc0f75d34cc0b8f6b1f41ea605b29869"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/ui/table.tsx",
+        "deployed_source_uid": "12beac2c16e4bb0091e2679ae07956d4cdf8442f",
+        "repository_sha256_lf": "272a83af1faca082d3ac7a4541f0ccecc11e5530aa4b3809ff412004a84d8141"
+      },
+      {
+        "path": "gfmd-dashboard/src/components/upload-contacts-modal.tsx",
+        "deployed_source_uid": "ac83b75774ab28b2094287cf33f5109a10458bb9",
+        "repository_sha256_lf": "954a9dff1ca5dfc643164bb9274ca4b5a376397ff43ed8ceae61004e6417be02"
+      },
+      {
+        "path": "gfmd-dashboard/src/lib/utils.ts",
+        "deployed_source_uid": "e2cbb60f5ffd09b4d5811144380b2e0976078018",
+        "repository_sha256_lf": "c19fe362f863a82ea9b01d42d07a92788763b2afd036b5e12bf872a5d016374e"
+      },
+      {
+        "path": "gfmd-dashboard/tsconfig.json",
+        "deployed_source_uid": "27dded29dc880f958ee67c9ed276fb2b1412f515",
+        "repository_sha256_lf": "5c51df4c59f4510d8c7dadf07a5c32132228826a3b331da5e286207b4df7ef9c"
+      }
+    ]
+  },
+  "verification": {
+    "offline_tests": 41,
+    "runtime_tests": 28,
+    "dashboard_build": "passed",
+    "dashboard_lint_errors": 0,
+    "dashboard_lint_warnings": 8
+  },
+  "credentials": "Hosting environments only; no credential values or mailbox/customer audit data included",
+  "hash_notes": "Worker sha256 records deployed bytes; sha256_lf allows platform line endings. Dashboard source UIDs are from Vercel; five credential-free route edits are intentional."
+}

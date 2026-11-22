@@ -26,7 +26,7 @@ export function SystemStatus({ data }: Props) {
                 Email Automation System
               </h3>
               <p className="text-sm font-light" style={{color: '#272030'}}>
-                Status: {isRunning ? 'Active and processing sequences' : 'Inactive'}
+                Status: {data.systemStatus.statusLabel || 'Status unavailable'}
               </p>
             </div>
           </div>

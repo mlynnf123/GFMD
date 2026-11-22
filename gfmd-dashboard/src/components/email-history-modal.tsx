@@ -34,9 +34,10 @@ interface EmailHistoryModalProps {
   onClose: () => void;
   contactEmail: string;
   contactId: string;
+  campaign?: string;
 }
 
-export function EmailHistoryModal({ isOpen, onClose, contactEmail, contactId }: EmailHistoryModalProps) {
+export function EmailHistoryModal({ isOpen, onClose, contactEmail, contactId, campaign }: EmailHistoryModalProps) {
   const [contact, setContact] = useState<ContactDetails | null>(null);
   const [sequence, setSequence] = useState<SequenceDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +52,8 @@ export function EmailHistoryModal({ isOpen, onClose, contactEmail, contactId }: 
   const fetchEmailHistory = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/contact-history?email=${encodeURIComponent(contactEmail)}&contactId=${contactId}`);
+      const campaignParam = campaign ? `&campaign=${campaign}` : '';
+      const response = await fetch(`/api/contact-history?email=${encodeURIComponent(contactEmail)}&contactId=${contactId}${campaignParam}`);
       const data = await response.json();
       setContact(data.contact || { email: contactEmail });
       setSequence(data.sequence || null);

@@ -98,7 +98,7 @@ Successfully integrated MongoDB Vector RAG system with GFMD email composer for d
 
 ### 🔧 Environment Variables Required
 ```bash
-MONGODB_CONNECTION_STRING="mongodb+srv://solutions-account:password@cluster0.hdejtab.mongodb.net/?appName=Cluster0"
+MONGODB_CONNECTION_STRING="mongodb+srv://<username>:<password>@<cluster>/"
 GROQ_API_KEY="your_groq_api_key_here"
 GMAIL_CREDENTIALS_PATH="gmail_credentials.json"
 ```

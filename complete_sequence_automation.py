@@ -10,6 +10,7 @@ import schedule
 import time
 import threading
 import random
+import numpy as np
 from datetime import datetime, timedelta
 from mongodb_storage import MongoDBStorage
 from email_sequence_templates import EmailSequenceTemplates
@@ -33,28 +34,96 @@ load_env()
 
 class CompleteSequenceAutomation:
     """Complete email sequence automation system"""
-    
+
+    # Campaigns that should NOT auto-add new contacts
+    PAUSED_CAMPAIGNS = {"narc_gone", "spectrum"}
+
+    # Map campaign names to their sequence template names
+    CAMPAIGN_SEQUENCE_MAP = {
+        "narc_gone": "narc_gone_law_enforcement",
+        "centrifuge": "centrifuge_hospital_labs",
+        "spectrum": "spectrum_snf_ltc",
+    }
+
     def __init__(self):
-        print("🚀 Initializing Complete Email Sequence Automation...")
-        
+        print("Initializing Complete Email Sequence Automation...")
+
         self.storage = MongoDBStorage()
         self.templates = EmailSequenceTemplates()
         self.email_composer = GroqEmailComposerAgent(agent_id="automation_composer")
         self.gmail = GmailIntegration()
         self.business_day_calc = BusinessDayCalculator()
-        
+
         # Initialize auto-reply system
         try:
             from ai_auto_reply_system import AIAutoReplySystem
             self.auto_reply_system = AIAutoReplySystem()
         except ImportError:
             self.auto_reply_system = None
-            print("⚠️ Auto-reply system not available")
+            print("Auto-reply system not available")
+
+        print("All components initialized successfully")
+        print(f"Gmail: {self.gmail.service is not None}")
+        print(f"MongoDB: Connected to {self.storage.db.name}")
         
-        print("✅ All components initialized successfully")
-        print(f"📧 Gmail: {self.gmail.service is not None}")
-        print(f"🗄️ MongoDB: Connected to {self.storage.db.name}")
-        
+    def _strip_email_boilerplate(self, body: str) -> str:
+        """Strip greeting and signature, returning only the pitch content for comparison"""
+        if not body:
+            return ""
+        lines = body.strip().split('\n')
+        # Strip "Hi Name," greeting
+        start = 0
+        for i, line in enumerate(lines):
+            if line.strip().startswith("Hi ") and line.strip().endswith(","):
+                start = i + 1
+                break
+        # Strip everything from "Best," onward
+        end = len(lines)
+        for i, line in enumerate(lines):
+            if line.strip() == "Best,":
+                end = i
+                break
+        pitch_lines = [l.strip() for l in lines[start:end] if l.strip()]
+        return " ".join(pitch_lines)
+
+    def _check_email_similarity(self, new_email: dict, previous_emails: list) -> dict:
+        """Check if the new email is too similar to any previously sent email using embeddings"""
+        try:
+            if not self.email_composer.rag_system:
+                return {"similar": False}
+
+            new_pitch = self._strip_email_boilerplate(new_email.get("body", ""))
+            if not new_pitch:
+                return {"similar": False}
+
+            new_embedding = self.email_composer.rag_system.generate_embedding(new_pitch)
+            if new_embedding is None:
+                return {"similar": False}
+
+            max_similarity = 0.0
+            most_similar_step = 0
+
+            for prev in previous_emails:
+                prev_pitch = self._strip_email_boilerplate(prev.get("body", ""))
+                if not prev_pitch:
+                    continue
+                prev_embedding = self.email_composer.rag_system.generate_embedding(prev_pitch)
+                if prev_embedding is None:
+                    continue
+                similarity = float(np.dot(new_embedding, prev_embedding))
+                if similarity > max_similarity:
+                    max_similarity = similarity
+                    most_similar_step = prev.get("step", 0)
+
+            return {
+                "similar": max_similarity >= 0.75,
+                "max_similarity": round(max_similarity, 4),
+                "most_similar_step": most_similar_step
+            }
+        except Exception as e:
+            print(f"   Similarity check failed ({e}), proceeding with send")
+            return {"similar": False}
+
     def add_contact_and_start_sequence(self, contact_data: dict) -> dict:
         """Add a contact and start email sequence"""
         try:
@@ -74,46 +143,51 @@ class CompleteSequenceAutomation:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    def start_sequence_for_contact(self, contact_id: str) -> dict:
+    def start_sequence_for_contact(self, contact_id: str, campaign: str = "narc_gone") -> dict:
         """Start email sequence for existing contact"""
+        if campaign not in self.CAMPAIGN_SEQUENCE_MAP:
+            return {"success": False, "error": f"Unsupported campaign: {campaign}"}
+        if campaign == "spectrum" and os.environ.get("GFMD_SPECTRUM_ENROLLMENT_ENABLED") != "1":
+            return {"success": False, "error": "Spectrum enrollment is disabled"}
         try:
             # Get contact
             from bson import ObjectId
             contact = self.storage.contacts.find_one({"_id": ObjectId(contact_id)})
             if not contact:
                 return {"success": False, "error": "Contact not found"}
-            
+
             contact_email = contact.get("email", "")
-            
-            # Check if sequence already exists
-            existing = self.storage.db.email_sequences.find_one({"contact_id": contact_id})
-            if existing and existing.get("status") == "active":
-                return {"success": False, "error": "Sequence already active"}
-            
+            sequence_name = self.CAMPAIGN_SEQUENCE_MAP.get(campaign, "narc_gone_law_enforcement")
+
+            # Check if sequence already exists for this contact+campaign
+            existing = self.storage.db.email_sequences.find_one({
+                "contact_id": contact_id,
+                "campaign": campaign
+            })
+            if existing:
+                return {"success": False, "error": f"Sequence already exists for {campaign} (status: {existing.get('status')})"}
+
             # Create sequence state
             sequence_state = {
                 'contact_id': contact_id,
                 'contact_email': contact_email,
-                'sequence_name': 'narc_gone_law_enforcement',
+                'campaign': campaign,
+                'sequence_name': sequence_name,
                 'current_step': 0,
                 'status': 'active',
                 'emails_sent': [],
                 'last_email_sent': None,
-                'next_email_due': datetime.now().isoformat(),
+                'next_email_due': (self._initial_spectrum_due() if campaign == "spectrum" else datetime.now().isoformat()),
                 'reply_received': False,
                 'created_at': datetime.now().isoformat(),
                 'updated_at': datetime.now().isoformat()
             }
-            
-            # Save to database
-            result = self.storage.db.email_sequences.update_one(
-                {"contact_id": contact_id},
-                {"$set": sequence_state},
-                upsert=True
-            )
-            
-            return {"success": True, "contact_id": contact_id}
-            
+
+            # Insert new sequence (not upsert - never overwrite existing)
+            result = self.storage.db.email_sequences.insert_one(sequence_state)
+
+            return {"success": True, "contact_id": contact_id, "campaign": campaign}
+
         except Exception as e:
             return {"success": False, "error": str(e)}
     
@@ -121,11 +195,25 @@ class CompleteSequenceAutomation:
         """Process all sequences that are due for next email"""
         try:
             now = datetime.now()
-            
-            # Find due sequences
+
+            # Minimum hours between emails to same contact (prevents duplicate sends)
+            min_hours_between_emails = 20  # At least 20 hours between any emails
+            min_email_time = (now - timedelta(hours=min_hours_between_emails)).isoformat()
+
+            # Find due sequences that:
+            # 1. Are active
+            # 2. next_email_due has passed
+            # 3. Haven't been emailed in the last 20 hours (prevents duplicates)
+            # 4. Aren't currently being processed
             due_sequences = list(self.storage.db.email_sequences.find({
                 "status": "active",
-                "next_email_due": {"$lte": now.isoformat()}
+                "next_email_due": {"$lte": now.isoformat()},
+                "$or": [
+                    {"last_email_sent": {"$exists": False}},
+                    {"last_email_sent": None},
+                    {"last_email_sent": {"$lt": min_email_time}}
+                ],
+                "processing": {"$ne": True}  # Not currently being processed
             }))
             
             results = {"processed": 0, "sent": 0, "errors": 0, "details": []}
@@ -141,7 +229,7 @@ class CompleteSequenceAutomation:
                         results["processed"] += 1
                         
                         if result.get("success"):
-                            if result.get("action") == "sent":
+                            if result.get("action") == "sent" or result.get("actually_sent") is True:
                                 results["sent"] += 1
                             elif result.get("action") == "completed":
                                 print(f"✅ Completed sequence for {sequence.get('contact_email')}")
@@ -183,27 +271,123 @@ class CompleteSequenceAutomation:
     
     async def _process_single_sequence(self, sequence: dict, send_emails: bool = True) -> dict:
         """Process a single email sequence"""
+        if sequence.get("campaign") == "spectrum":
+            # Keep Spectrum failures out of the legacy unconditional unlock path.
+            from spectrum_worker import process_spectrum_sequence
+            return await process_spectrum_sequence(self, sequence, send_emails)
+        if send_emails and os.environ.get("GFMD_EMAIL_SEND_ENABLED") != "1":
+            return {"success": False, "action": "disabled", "error": "Email sending is disabled pending approval"}
+        if send_emails and not self.gmail.service:
+            return {"success": False, "error": "Gmail authentication unavailable; sequence unchanged"}
         try:
             contact_id = sequence["contact_id"]
             current_step = sequence.get("current_step", 0)
             next_step = current_step + 1
-            
-            # Get email template
-            template = self.templates.get_email_template("narc_gone_law_enforcement", next_step)
+            # Use raw campaign value for DB queries (None matches missing field)
+            campaign_raw = sequence.get("campaign")
+            campaign = campaign_raw or "narc_gone"
+            sequence_name = sequence.get("sequence_name", self.CAMPAIGN_SEQUENCE_MAP.get(campaign, "narc_gone_law_enforcement"))
+            # A worker with older templates must leave newer campaigns untouched.
+            config = self.templates.get_sequence_config(sequence_name)
+            if not config or config.get("campaign") != campaign:
+                return {
+                    "success": False,
+                    "error": f"Unsupported sequence configuration: {campaign}/{sequence_name}",
+                }
+            template = self.templates.get_email_template(sequence_name, next_step)
             if not template:
-                # Sequence complete
-                self.storage.db.email_sequences.update_one(
-                    {"contact_id": contact_id},
-                    {"$set": {"status": "completed", "updated_at": datetime.now().isoformat()}}
-                )
-                return {"success": True, "action": "completed"}
-            
+                return {
+                    "success": False,
+                    "error": f"Missing template for {sequence_name} step {next_step}; sequence unchanged",
+                }
+            # Build query filter that matches the actual document
+            campaign_filter = {"contact_id": contact_id, "campaign": campaign_raw}
+
+            # ATOMIC LOCK: Try to acquire processing lock for this sequence
+            # This prevents duplicate sends from concurrent scheduler runs
+            lock_result = self.storage.db.email_sequences.find_one_and_update(
+                {
+                    **campaign_filter,
+                    "status": "active",
+                    "processing": {"$ne": True},
+                    "current_step": current_step  # Ensure step hasn't changed
+                },
+                {
+                    "$set": {
+                        "processing": True,
+                        "processing_started": datetime.now().isoformat()
+                    }
+                },
+                return_document=True  # Return updated document
+            )
+
+            if not lock_result:
+                # Another process is handling this sequence, skip it
+                print(f"   Skipping {sequence.get('contact_email')} - already being processed or step changed")
+                return {"success": True, "action": "skipped", "reason": "concurrent_processing"}
+
+            # Double-check last email wasn't sent recently (belt and suspenders)
+            last_sent = lock_result.get("last_email_sent")
+            if last_sent:
+                last_sent_dt = datetime.fromisoformat(last_sent) if isinstance(last_sent, str) else last_sent
+                hours_since_last = (datetime.now() - last_sent_dt).total_seconds() / 3600
+                if hours_since_last < 20:
+                    # Release lock and skip
+                    self.storage.db.email_sequences.update_one(
+                        campaign_filter,
+                        {"$set": {"processing": False}}
+                    )
+                    print(f"   Skipping {sequence.get('contact_email')} - last email was {hours_since_last:.1f} hours ago")
+                    return {"success": True, "action": "skipped", "reason": "too_recent"}
+
             # Get contact data
             from bson import ObjectId
             contact = self.storage.contacts.find_one({"_id": ObjectId(contact_id)})
             if not contact:
+                # Release lock
+                self.storage.db.email_sequences.update_one(
+                    campaign_filter,
+                    {"$set": {"processing": False}}
+                )
                 return {"success": False, "error": "Contact not found"}
-            
+
+            # CRITICAL: Check if contact is on suppression list
+            contact_email = contact.get("email", "").lower()
+            is_suppressed = self.storage.db.suppression_list.find_one({
+                'email': contact_email,
+                'status': 'active'
+            })
+
+            if is_suppressed:
+                # Contact is suppressed - stop sequence immediately
+                self.storage.db.email_sequences.update_one(
+                    campaign_filter,
+                    {"$set": {
+                        "status": "suppressed",
+                        "stopped_at": datetime.now().isoformat(),
+                        "stop_reason": is_suppressed.get("reason", "On suppression list"),
+                        "processing": False,
+                        "updated_at": datetime.now().isoformat()
+                    }}
+                )
+                print(f"   Stopped sequence for suppressed contact: {contact_email}")
+                return {"success": True, "action": "suppressed", "email": contact_email}
+
+            # Check if contact status is suppressed (belt and suspenders)
+            if contact.get("status") == "suppressed":
+                self.storage.db.email_sequences.update_one(
+                    campaign_filter,
+                    {"$set": {
+                        "status": "suppressed",
+                        "stopped_at": datetime.now().isoformat(),
+                        "stop_reason": contact.get("suppression_reason", "Contact marked as suppressed"),
+                        "processing": False,
+                        "updated_at": datetime.now().isoformat()
+                    }}
+                )
+                print(f"   Stopped sequence for suppressed contact: {contact_email}")
+                return {"success": True, "action": "suppressed", "email": contact_email}
+
             # Get previous emails for context (to avoid repetition)
             previous_emails = sequence.get("emails_sent", [])
 
@@ -217,6 +401,7 @@ class CompleteSequenceAutomation:
                     "email": contact.get("email", "")
                 },
                 "sequence_context": {
+                    "campaign": campaign,
                     "step": template["step"],
                     "type": template["type"],
                     "focus": template["focus"],
@@ -228,19 +413,76 @@ class CompleteSequenceAutomation:
                 }
             }
             
-            email_result = await self.email_composer.execute(task)
-            
-            if not email_result.get("subject") or not email_result.get("body"):
+            # Generate email with similarity check retry loop
+            max_attempts = 3 if next_step > 1 and previous_emails else 1
+            best_result = None
+            best_similarity = 1.0
+            similarity_meta = {"max_similarity": 0.0, "retries": 0, "passed": True}
+
+            for attempt in range(max_attempts):
+                email_result = await self.email_composer.execute(task)
+
+                if not email_result.get("subject") or not email_result.get("body"):
+                    if attempt < max_attempts - 1:
+                        continue
+                    return {"success": False, "error": "Email generation failed"}
+
+                # Skip similarity check for step 1 (no previous emails)
+                if next_step <= 1 or not previous_emails:
+                    best_result = email_result
+                    break
+
+                sim = self._check_email_similarity(email_result, previous_emails)
+                sim_score = sim.get("max_similarity", 0.0)
+
+                if sim_score < best_similarity:
+                    best_similarity = sim_score
+                    best_result = email_result
+
+                if not sim.get("similar", False):
+                    similarity_meta = {"max_similarity": sim_score, "retries": attempt, "passed": True}
+                    break
+
+                # Too similar -- retry with rejection context
+                similarity_meta = {"max_similarity": sim_score, "retries": attempt + 1, "passed": False}
+                print(f"   Similarity too high ({sim_score:.2f}) with step {sim.get('most_similar_step')}, retrying ({attempt + 1}/{max_attempts - 1})...")
+                task["sequence_context"]["similarity_rejection"] = {
+                    "rejected_subject": email_result.get("subject", ""),
+                    "similarity_score": sim_score,
+                    "most_similar_step": sim.get("most_similar_step", 0)
+                }
+            else:
+                # All attempts exceeded threshold -- use the least similar one
+                print(f"   Warning: All {max_attempts} attempts exceeded similarity threshold, using best ({best_similarity:.2f})")
+                similarity_meta["passed"] = False
+
+            email_result = best_result
+            if not email_result or not email_result.get("subject") or not email_result.get("body"):
                 return {"success": False, "error": "Email generation failed"}
             
             # Send email if requested
             if send_emails and self.gmail.service:
                 try:
+                    # Build threading kwargs for follow-up emails (steps 2+)
+                    threading_kwargs = {}
+                    if next_step > 1 and previous_emails:
+                        # Find the most recent previous email with Gmail IDs
+                        for prev_email in reversed(previous_emails):
+                            if prev_email.get("gmail_message_id") and prev_email.get("gmail_thread_id"):
+                                headers = self.gmail.get_message_thread_headers(prev_email["gmail_message_id"])
+                                if not headers.get("success") or headers.get("thread_id") != prev_email["gmail_thread_id"]:
+                                    return {"success": False, "error": "Could not verify parent Gmail thread; sequence unchanged"}
+                                threading_kwargs["thread_id"] = headers["thread_id"]
+                                threading_kwargs["in_reply_to"] = headers["rfc_message_id"]
+                                email_result["subject"] = headers["subject"]
+                                break
+
                     send_result = self.gmail.send_email(
                         to_email=contact.get("email"),
                         subject=email_result.get("subject"),
                         body=email_result.get("body"),
-                        html_body=email_result.get("html_body")
+                        html_body=email_result.get("html_body"),
+                        **threading_kwargs
                     )
                     
                     if send_result.get("success"):
@@ -256,54 +498,104 @@ class CompleteSequenceAutomation:
                 print(f"   Subject: {email_result.get('subject')}")
             
             # Update sequence state
-            emails_sent = sequence.get("emails_sent", [])
-            emails_sent.append({
+            email_record = {
                 "step": next_step,
                 "sent_at": datetime.now().isoformat(),
                 "subject": email_result.get("subject"),
                 "body": email_result.get("body"),
                 "template_type": template.get("type"),
-                "actually_sent": send_emails and self.gmail.service is not None
-            })
+                "actually_sent": send_emails and self.gmail.service is not None,
+                "similarity_check": similarity_meta
+            }
+
+            # Store Gmail IDs for threading follow-up emails
+            if send_emails and self.gmail.service and send_result.get("success"):
+                email_record["gmail_message_id"] = send_result.get("message_id")
+                email_record["gmail_thread_id"] = send_result.get("thread_id")
+
+            emails_sent = sequence.get("emails_sent", [])
+            emails_sent.append(email_record)
             
             # Calculate next email due date using business days
-            next_template = self.templates.get_email_template("narc_gone_law_enforcement", next_step + 1)
+            next_template = self.templates.get_email_template(sequence_name, next_step + 1)
             if next_template:
                 wait_business_days = next_template.get("wait_days", 2)
                 next_due = self.business_day_calc.add_business_days(datetime.now(), wait_business_days)
                 # Ensure it's during good email hours (9 AM - 6 PM)
                 next_email_due = self.business_day_calc.get_next_good_email_time(next_due).isoformat()
+                sequence_status = "active"
             else:
+                # No more emails - sequence is complete!
                 next_email_due = None
-            
-            # Update database
+                sequence_status = "completed"
+                print(f"   ✅ Sequence completed for {contact.get('email')}")
+
+            # Update database - release processing lock and update state
+            update_data = {
+                "current_step": next_step,
+                "last_email_sent": datetime.now().isoformat(),
+                "emails_sent": emails_sent,
+                "next_email_due": next_email_due,
+                "status": sequence_status,
+                "processing": False,
+                "updated_at": datetime.now().isoformat()
+            }
+
+            # If completed, add completion timestamp and flag the contact
+            if sequence_status == "completed":
+                update_data["completed_at"] = datetime.now().isoformat()
+                # Mark contact as sequence_completed for permanent protection
+                self.storage.contacts.update_one(
+                    {"_id": ObjectId(contact_id)},
+                    {"$set": {"status": "sequence_completed", "sequence_completed_at": datetime.now().isoformat()}}
+                )
+
             self.storage.db.email_sequences.update_one(
-                {"contact_id": contact_id},
-                {"$set": {
-                    "current_step": next_step,
-                    "last_email_sent": datetime.now().isoformat(),
-                    "emails_sent": emails_sent,
-                    "next_email_due": next_email_due,
-                    "updated_at": datetime.now().isoformat()
-                }}
+                campaign_filter,
+                {"$set": update_data}
             )
-            
-            return {"success": True, "action": "sent", "step": next_step}
-            
+
+            return {"success": True, "action": "sent" if sequence_status == "active" else "completed", "step": next_step}
+
         except Exception as e:
+            # Release lock on error
+            try:
+                self.storage.db.email_sequences.update_one(
+                    {"contact_id": sequence.get("contact_id"), "campaign": sequence.get("campaign")},
+                    {"$set": {"processing": False}}
+                )
+            except:
+                pass
             return {"success": False, "error": str(e)}
     
-    async def add_daily_new_contacts(self, count: int = 10) -> dict:
+    def _initial_spectrum_due(self):
+        from datetime import timezone
+        from spectrum_campaign import next_spectrum_due
+        return next_spectrum_due(datetime.now(timezone.utc), 1).isoformat()
+
+    async def add_daily_new_contacts(self, count: int = 10, campaign: str = "narc_gone") -> dict:
         """Add new contacts daily from available contact pool"""
+        if campaign not in self.CAMPAIGN_SEQUENCE_MAP:
+            return {"success": False, "error": f"Unsupported campaign: {campaign}"}
         try:
-            print(f"\n📊 Adding {count} new contacts to sequences...")
-            
-            # Find contacts that don't have active sequences
+            # Check if this campaign is paused for auto-add
+            if campaign in self.PAUSED_CAMPAIGNS:
+                print(f"\nCampaign '{campaign}' is paused for auto-add -- skipping")
+                return {"success": True, "added": 0, "message": f"Campaign '{campaign}' is paused for new contacts"}
+
+            print(f"\nAdding {count} new contacts to {campaign} sequences...")
+
+            sequence_name = self.CAMPAIGN_SEQUENCE_MAP.get(campaign, "narc_gone_law_enforcement")
+
+            # Find contacts that already have sequences for this campaign
             active_sequences = list(self.storage.db.email_sequences.find(
-                {"status": {"$in": ["active", "completed"]}},
+                {
+                    "campaign": campaign,
+                    "status": {"$in": ["active", "completed", "suppressed", "replied", "deduped"]}
+                },
                 {"contact_id": 1}
             ))
-            
+
             # Convert to ObjectIds for query
             from bson import ObjectId
             active_contact_ids = []
@@ -315,54 +607,57 @@ class CompleteSequenceAutomation:
                         active_contact_ids.append(seq["contact_id"])
                 except:
                     pass
-            
-            # Find contacts without sequences
-            query_filter = {"_id": {"$nin": active_contact_ids}} if active_contact_ids else {}
+
+            # Find contacts for this campaign without sequences
+            query_filter = {"campaign": campaign}
+            if active_contact_ids:
+                query_filter["_id"] = {"$nin": active_contact_ids}
             available_contacts = list(self.storage.contacts.find(query_filter).limit(count))
-            
+
             if not available_contacts:
-                print("📭 No new contacts available to add to sequences")
+                print("No new contacts available to add to sequences")
                 return {"success": True, "added": 0, "message": "No available contacts"}
-            
+
             added_count = 0
             results = []
-            
+
             # Add up to requested count
             for contact in available_contacts[:count]:
                 try:
                     contact_id = str(contact["_id"])
-                    result = self.start_sequence_for_contact(contact_id)
-                    
+                    result = self.start_sequence_for_contact(contact_id, campaign=campaign)
+
                     if result.get("success"):
                         added_count += 1
-                        print(f"✅ Started sequence for {contact.get('email', 'unknown')}")
+                        print(f"Started sequence for {contact.get('email', 'unknown')} ({campaign})")
                         results.append({
                             "contact_id": contact_id,
                             "email": contact.get("email"),
                             "success": True
                         })
                     else:
-                        print(f"❌ Failed to start sequence for {contact.get('email', 'unknown')}: {result.get('error')}")
+                        print(f"Failed to start sequence for {contact.get('email', 'unknown')}: {result.get('error')}")
                         results.append({
                             "contact_id": contact_id,
                             "email": contact.get("email"),
                             "success": False,
                             "error": result.get("error")
                         })
-                        
+
                 except Exception as e:
-                    print(f"❌ Error processing contact {contact.get('email', 'unknown')}: {e}")
-            
-            print(f"📈 Added {added_count} new contacts to sequences")
-            
+                    print(f"Error processing contact {contact.get('email', 'unknown')}: {e}")
+
+            print(f"Added {added_count} new contacts to {campaign} sequences")
+
             return {
                 "success": True,
                 "added": added_count,
                 "total_requested": count,
                 "available_contacts": len(available_contacts),
+                "campaign": campaign,
                 "results": results
             }
-            
+
         except Exception as e:
             return {"success": False, "error": str(e)}
     
@@ -395,14 +690,69 @@ class CompleteSequenceAutomation:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
+    def cleanup_stuck_sequences(self) -> dict:
+        """Clean up stuck processing locks and fix duplicate sequences"""
+        try:
+            # Reset any stuck processing locks (older than 1 hour)
+            one_hour_ago = (datetime.now() - timedelta(hours=1)).isoformat()
+            stuck_result = self.storage.db.email_sequences.update_many(
+                {
+                    "processing": True,
+                    "processing_started": {"$lt": one_hour_ago}
+                },
+                {"$set": {"processing": False}}
+            )
+
+            # Find duplicate sequences (same contact_email with multiple active sequences)
+            pipeline = [
+                {"$match": {"status": "active"}},
+                {"$group": {
+                    "_id": "$contact_email",
+                    "count": {"$sum": 1},
+                    "sequences": {"$push": {"id": "$_id", "step": "$current_step", "updated": "$updated_at"}}
+                }},
+                {"$match": {"count": {"$gt": 1}}}
+            ]
+            duplicates = list(self.storage.db.email_sequences.aggregate(pipeline))
+
+            deduped_count = 0
+            for dup in duplicates:
+                # Keep the sequence with highest step or most recent update
+                sequences = sorted(dup["sequences"], key=lambda x: (x.get("step", 0), x.get("updated", "")), reverse=True)
+                # Mark all but the first (best) as completed to stop duplicates
+                for seq in sequences[1:]:
+                    self.storage.db.email_sequences.update_one(
+                        {"_id": seq["id"]},
+                        {"$set": {"status": "deduped", "deduped_at": datetime.now().isoformat()}}
+                    )
+                    deduped_count += 1
+
+            print(f"Cleanup: Reset {stuck_result.modified_count} stuck locks, deduped {deduped_count} sequences")
+
+            return {
+                "success": True,
+                "stuck_locks_reset": stuck_result.modified_count,
+                "duplicates_fixed": deduped_count
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     def start_background_scheduler(self):
         """Start background processing every hour and daily contact addition"""
         def run_scheduler():
+            # Run cleanup at startup
+            print("Running startup cleanup...")
+            self.cleanup_stuck_sequences()
+
+            # Schedule cleanup every 4 hours
+            schedule.every(4).hours.do(self.cleanup_stuck_sequences)
+
             # Schedule processing every hour
             schedule.every().hour.do(self._scheduled_processing)
             
             # Schedule at specific times for better control (adjusted for CST = UTC-6)
             schedule.every().day.at("15:00").do(self._scheduled_processing)  # 9 AM CST
+            schedule.every().day.at("15:15").do(self._scheduled_processing)  # Observed Spectrum UTC anchor; sending remains opt-in.
             schedule.every().day.at("19:00").do(self._scheduled_processing)  # 1 PM CST
             schedule.every().day.at("23:00").do(self._scheduled_processing)  # 5 PM CST
             
@@ -419,13 +769,15 @@ class CompleteSequenceAutomation:
             # Add daily bounce/suppression scan at 6 AM CST = 12:00 UTC
             schedule.every().day.at("12:00").do(self._scan_for_bounces)
 
-            print("⏰ Background scheduler started")
+            print("Background scheduler started")
             print("   - Processing every hour")
             print("   - Special runs at 9 AM, 1 PM, 5 PM CST")
             print("   - Daily contact addition: Monday-Friday at 8 AM CST (10 new contacts)")
             print("   - Auto-reply monitoring: Every 2 hours")
             print("   - Daily email scan (bounces + replies): 6 AM CST")
+            print("   - Cleanup (stuck locks + duplicates): Every 4 hours")
             print("   - Email timing: Every 2 business days")
+            print("   - Duplicate prevention: 20-hour minimum between emails to same contact")
             
             while True:
                 schedule.run_pending()
@@ -446,7 +798,9 @@ class CompleteSequenceAutomation:
             result = loop.run_until_complete(self.process_due_sequences(send_emails=True))
             loop.close()
             
-            if result.get("sent", 0) > 0:
+            if result.get("error") or result.get("errors", 0):
+                print(f"Scheduled processing failed: {result.get('error') or str(result['errors']) + ' sequence error(s)'}")
+            elif result.get("sent", 0) > 0:
                 print(f"📧 Scheduled run: Sent {result['sent']} emails")
             else:
                 print("📧 Scheduled run: No emails due")
@@ -455,23 +809,25 @@ class CompleteSequenceAutomation:
             print(f"❌ Scheduled processing error: {e}")
     
     def _add_daily_contacts(self):
-        """Scheduled daily contact addition function"""
-        print(f"\n🌅 {datetime.now().strftime('%Y-%m-%d %H:%M')} - Running daily contact addition...")
-        
-        # Run async contact addition in sync context
+        """Scheduled daily contact addition function -- runs for all campaigns"""
+        print(f"\n{datetime.now().strftime('%Y-%m-%d %H:%M')} - Running daily contact addition...")
+
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(self.add_daily_new_contacts(count=10))
+
+            for campaign in self.CAMPAIGN_SEQUENCE_MAP:
+                result = loop.run_until_complete(self.add_daily_new_contacts(count=10, campaign=campaign))
+                if result.get("added", 0) > 0:
+                    print(f"Daily run: Added {result['added']} new contacts to {campaign} sequences")
+                else:
+                    msg = result.get("message", "No new contacts added")
+                    print(f"Daily run ({campaign}): {msg}")
+
             loop.close()
-            
-            if result.get("added", 0) > 0:
-                print(f"📈 Daily run: Added {result['added']} new contacts to sequences")
-            else:
-                print("📭 Daily run: No new contacts added")
-                
+
         except Exception as e:
-            print(f"❌ Daily contact addition error: {e}")
+            print(f"Daily contact addition error: {e}")
     
     def _check_auto_replies(self):
         """Scheduled auto-reply checking function"""
@@ -485,7 +841,9 @@ class CompleteSequenceAutomation:
                 loop.close()
 
                 if results:
-                    print(f"Auto-reply run: Sent {len(results)} intelligent replies")
+                    sent = sum(r.get("actually_sent") is True for r in results)
+                    review = sum(r.get("action") == "human_review" for r in results)
+                    print(f"Auto-reply run: {sent} sent, {review} queued for review")
                 else:
                     print("Auto-reply run: No new replies to process")
 

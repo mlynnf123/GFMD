@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { MongoClient, ObjectId } from 'mongodb';
+import { MongoClient } from 'mongodb';
 
 // MongoDB connection - using same credentials as Railway deployment
-const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || 
-  'mongodb+srv://solutions-account:GFMDgfmd2280%40%40@cluster0.hdejtab.mongodb.net/?appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || process.env.MONGODB_URI || '';
 
 export async function GET(request: Request) {
   try {
@@ -11,6 +10,7 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
     const search = searchParams.get('search') || '';
+    // Campaign param accepted but suppression is global -- no filter applied
     
     const client = new MongoClient(MONGODB_URI);
     await client.connect();
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const suppressionCollection = db.collection('suppression_list');
     
     // Build query for search
-    let query: any = { status: 'active' };
+    const query: Record<string, unknown> = { status: 'active' };
     
     if (search) {
       query.email = { $regex: search, $options: 'i' };

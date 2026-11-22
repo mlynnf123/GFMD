@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 
 // MongoDB connection - using same credentials as Railway deployment
-const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || 
-  'mongodb+srv://solutions-account:GFMDgfmd2280%40%40@cluster0.hdejtab.mongodb.net/?appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || process.env.MONGODB_URI || '';
 
 interface SequenceData {
   _id: string;

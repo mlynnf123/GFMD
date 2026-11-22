@@ -31,7 +31,6 @@ export function ActivityTable({ data, onContactClick }: Props) {
               <TableHead className="font-light" style={{color: '#272030'}}>Organization</TableHead>
               <TableHead className="font-light" style={{color: '#272030'}}>Stage</TableHead>
               <TableHead className="font-light" style={{color: '#272030'}}>Last Contact</TableHead>
-              <TableHead className="font-light" style={{color: '#272030'}}>Days Unanswered</TableHead>
               <TableHead className="font-light" style={{color: '#272030'}}>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -61,9 +60,6 @@ export function ActivityTable({ data, onContactClick }: Props) {
                 </TableCell>
                 <TableCell className="font-light" style={{color: '#272030'}}>
                   {lead.lastContact}
-                </TableCell>
-                <TableCell className="font-light" style={{color: '#272030'}}>
-                  {lead.daysUnanswered ?? 'N/A'}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center">

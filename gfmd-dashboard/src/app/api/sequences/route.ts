@@ -2,21 +2,27 @@ import { NextResponse } from 'next/server';
 import { MongoClient, ObjectId } from 'mongodb';
 
 // MongoDB connection - using same credentials as Railway deployment
-const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || 
-  'mongodb+srv://solutions-account:GFMDgfmd2280%40%40@cluster0.hdejtab.mongodb.net/?appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || process.env.MONGODB_URI || '';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const campaign = searchParams.get('campaign');
+
     const client = new MongoClient(MONGODB_URI);
     await client.connect();
-    
+
     const db = client.db('gfmd_narc_gone');
     const sequencesCollection = db.collection('email_sequences');
     const contactsCollection = db.collection('contacts');
-    
-    // Get all active sequences
+
+    // Get all active sequences, optionally filtered by campaign
+    const filter: Record<string, unknown> = { status: 'active' };
+    if (campaign) {
+      filter.campaign = campaign;
+    }
     const sequences = await sequencesCollection
-      .find({ status: 'active' })
+      .find(filter)
       .sort({ updated_at: -1 })
       .toArray();
     
@@ -36,7 +42,7 @@ export async function GET() {
       .toArray();
     
     // Create contact lookup map
-    const contactMap: {[key: string]: any} = {};
+    const contactMap: Record<string, (typeof contacts)[number]> = {};
     contacts.forEach(contact => {
       contactMap[contact._id.toString()] = contact;
     });

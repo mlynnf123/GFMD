@@ -4,8 +4,7 @@ import { MongoClient } from 'mongodb';
 // Increase timeout for large file uploads
 export const maxDuration = 60; // 60 seconds max
 
-const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING ||
-  'mongodb+srv://solutions-account:GFMDgfmd2280%40%40@cluster0.hdejtab.mongodb.net/?appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || process.env.MONGODB_URI || '';
 
 interface ContactRow {
   name?: string;
@@ -99,6 +98,15 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const startSequences = formData.get('startSequences') === 'true';
+    const campaign = (formData.get('campaign') as string) || 'narc_gone';
+
+    // Map campaign to sequence name
+    const campaignSequenceMap: Record<string, string> = {
+      narc_gone: 'narc_gone_law_enforcement',
+      centrifuge: 'centrifuge_hospital_labs',
+      spectrum: 'spectrum_snf_ltc',
+    };
+    const sequenceName = campaignSequenceMap[campaign] || 'narc_gone_law_enforcement';
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -147,6 +155,7 @@ export async function POST(request: Request) {
           title: contact.title || '',
           location: contact.location || '',
           phone: contact.phone || '',
+          campaign: campaign,
           status: 'new',
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -158,22 +167,31 @@ export async function POST(request: Request) {
 
         // Start sequence if requested
         if (startSequences && result.insertedId) {
-          const sequenceDoc = {
+          // Check if a sequence already exists for this contact+campaign
+          const existingSequence = await sequencesCollection.findOne({
             contact_id: result.insertedId.toString(),
-            contact_email: contact.email?.toLowerCase(),
-            sequence_name: 'narc_gone_law_enforcement',
-            current_step: 0,
-            status: 'active',
-            emails_sent: [],
-            last_email_sent: null,
-            next_email_due: new Date().toISOString(),
-            reply_received: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
+            campaign: campaign
+          });
 
-          await sequencesCollection.insertOne(sequenceDoc);
-          sequencesStarted++;
+          if (!existingSequence) {
+            const sequenceDoc = {
+              contact_id: result.insertedId.toString(),
+              contact_email: contact.email?.toLowerCase(),
+              campaign: campaign,
+              sequence_name: sequenceName,
+              current_step: 0,
+              status: 'active',
+              emails_sent: [],
+              last_email_sent: null,
+              next_email_due: new Date().toISOString(),
+              reply_received: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+
+            await sequencesCollection.insertOne(sequenceDoc);
+            sequencesStarted++;
+          }
         }
 
       } catch (err) {

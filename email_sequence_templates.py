@@ -16,6 +16,7 @@ class EmailSequenceTemplates:
             "narc_gone_law_enforcement": {
                 "name": "Narc Gone Law Enforcement Outreach",
                 "description": "6-email sequence for law enforcement agencies",
+                "campaign": "narc_gone",
                 "timing_days": [0, 2, 4, 6, 8, 10],  # Business days between emails (every 2 business days)
                 "emails": [
                     {
@@ -115,8 +116,103 @@ class EmailSequenceTemplates:
                         }
                     }
                 ]
+            },
+
+            "centrifuge_hospital_labs": {
+                "name": "Silencer Centrifuge Hospital Lab Outreach",
+                "description": "5-email sequence for hospital and clinical labs - monthly then quarterly cadence",
+                "campaign": "centrifuge",
+                "timing_days": [0, 22, 44, 109, 174],  # ~monthly x2, then quarterly x2
+                "emails": [
+                    {
+                        "step": 1,
+                        "type": "initial",
+                        "wait_days": 0,
+                        "subject_template": "Lab centrifuge noise at {company_name}",
+                        "focus": "lab_efficiency_introduction",
+                        "tone": "professional_introduction",
+                        "call_to_action": "quick_call",
+                        "prompts": {
+                            "system_addition": """This is the FIRST email in the centrifuge sequence. Focus on:
+- Introduce GFMD (Global Focus) as an American small business manufacturing the Silencer centrifuge in Dallas, Texas for over 30 years
+- Highlight key differentiators: very quiet, very reliable (quality parts, mostly metal), large motor, built to last
+- Mention USA built with USA technical support
+- Mention the End-of-Run Light: illuminates red while running and green at standby (visual cue)
+- Soft call to action: "If you are in the market for a new centrifuge, please feel free to reach out"
+- Keep it short and professional, similar to a personal introduction"""
+                        }
+                    },
+                    {
+                        "step": 2,
+                        "type": "value_follow_up",
+                        "wait_days": 22,
+                        "subject_template": "Quick follow-up - {company_name} lab equipment",
+                        "focus": "cost_savings_noise_reduction",
+                        "tone": "helpful_follow_up",
+                        "call_to_action": "specific_meeting",
+                        "prompts": {
+                            "system_addition": """This is the SECOND email (follow-up #1, ~1 month later). Focus on:
+- Reference previous email without being pushy
+- Highlight the product range: MACH & ELITE (small STAT units, fast turnaround), STEALTH (mid-size, medium batches), TANK (large tabletop, large batches of different sized tubes), ROVER (floor model, high volume with limited bench space)
+- Emphasize there is a model for every lab size and workflow
+- Mention the product page: https://gfmd.com/silencer-centrifuges/
+- Suggest a specific time for call or offer to send pricing"""
+                        }
+                    },
+                    {
+                        "step": 3,
+                        "type": "case_study_follow_up",
+                        "wait_days": 22,
+                        "subject_template": "How {similar_org} improved lab efficiency",
+                        "focus": "social_proof_case_study",
+                        "tone": "story_based",
+                        "call_to_action": "brief_demo",
+                        "prompts": {
+                            "system_addition": """This is the THIRD email (follow-up #2, ~2 months in). Focus on:
+- Lead with the noise angle: Silencer Centrifuges are so quiet, GFMD had to manufacture the End-of-Run Light so you know when it is done -- a first in the industry, only necessary on Silencers
+- Emphasize durability: quality parts (mostly metal), large motor, built to last, 30+ years of manufacturing
+- Mention USA built and USA technical support as differentiator from competitors
+- Offer a brief demo, equipment evaluation, or pricing"""
+                        }
+                    },
+                    {
+                        "step": 4,
+                        "type": "budget_roi_follow_up",
+                        "wait_days": 65,
+                        "subject_template": "Budget planning for {company_name} lab equipment",
+                        "focus": "budget_justification_roi",
+                        "tone": "timing_focused",
+                        "call_to_action": "budget_discussion",
+                        "prompts": {
+                            "system_addition": """This is the FOURTH email (follow-up #3, ~1 quarter later). Focus on:
+- Budget planning cycle for hospital/lab equipment ($4,500-$11,000 range)
+- ROI justification: durable metal construction means longer lifespan, lower maintenance, less downtime
+- Silencer is a capital equipment investment that pays for itself vs cheaper units that break down
+- Help with capital equipment budget requests -- offer to provide a formal quote
+- Keep it relevant to their budget cycle timing"""
+                        }
+                    },
+                    {
+                        "step": 5,
+                        "type": "final_attempt",
+                        "wait_days": 65,
+                        "subject_template": "Final note - Silencer Centrifuge for {company_name}",
+                        "focus": "respectful_final_attempt",
+                        "tone": "graceful_exit",
+                        "call_to_action": "future_contact",
+                        "prompts": {
+                            "system_addition": """This is the FINAL email (follow-up #4, ~2 quarters in). Focus on:
+- Acknowledge they're busy or may not be in market right now
+- Mention this is your last email
+- One final value statement about lab efficiency
+- Leave door open for future contact when equipment budgets open up"""
+                        }
+                    }
+                ]
             }
         }
+        from spectrum_campaign import SEQUENCE_NAME, spectrum_sequence_config
+        self.sequences[SEQUENCE_NAME] = spectrum_sequence_config()
     
     def get_sequence_config(self, sequence_name: str = "narc_gone_law_enforcement") -> Dict[str, Any]:
         """Get configuration for a specific sequence"""
@@ -143,20 +239,39 @@ class EmailSequenceTemplates:
         
         return None  # No more emails in sequence
     
-    def generate_subject_variables(self, contact_data: Dict[str, Any], template: Dict[str, Any]) -> Dict[str, str]:
+    def generate_subject_variables(self, contact_data: Dict[str, Any], template: Dict[str, Any], campaign: str = "narc_gone") -> Dict[str, str]:
         """Generate variables for subject line templates"""
         company_name = contact_data.get("company_name", "your department")
-        
-        # Clean company name for subject
-        if "police" in company_name.lower():
+        org_lower = company_name.lower()
+
+        if campaign == "centrifuge":
+            # Hospital/lab org type matching
+            if any(k in org_lower for k in ["hospital", "medical center", "health system"]):
+                similar_org = "Memorial Hermann Hospital Lab"
+            elif any(k in org_lower for k in ["laboratory", " lab", "clinical lab", "pathology"]):
+                similar_org = "Quest Diagnostics"
+            elif "pharmacy" in org_lower:
+                similar_org = "CVS Health Lab"
+            elif any(k in org_lower for k in ["university", "college"]):
+                similar_org = "Johns Hopkins Research Lab"
+            else:
+                similar_org = "Houston Methodist Lab"
+
+            return {
+                "company_name": company_name,
+                "similar_org": similar_org,
+            }
+
+        # Narc Gone law enforcement matching
+        if "police" in org_lower:
             similar_agency = "Dallas PD"
-        elif "sheriff" in company_name.lower():
+        elif "sheriff" in org_lower:
             similar_agency = "Orange County Sheriff"
-        elif any(fed in company_name.lower() for fed in ["dea", "cbp", "border", "customs", "federal"]):
+        elif any(fed in org_lower for fed in ["dea", "cbp", "border", "customs", "federal"]):
             similar_agency = "CBP San Diego"
         else:
             similar_agency = "Phoenix Police"
-        
+
         return {
             "company_name": company_name,
             "similar_agency": similar_agency

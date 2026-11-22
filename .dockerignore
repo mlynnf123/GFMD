@@ -52,6 +52,7 @@ test_*.py
 # Documentation
 *.md
 docs/
+!knowledge_base/*.md
 
 # Backup files
 removed_files_backup/
@@ -64,6 +65,13 @@ temp/
 
 # Gmail tokens (will be set via environment)
 gmail_token.json
+gmail_credentials.json
+node_modules/
+gfmd-dashboard/
+tests/
+.venv/
+.vercel/
+.railway/
 
 # Local environment files
 .env.local

@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install Python dependencies
+RUN pip install --no-cache-dir torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install additional production dependencies
@@ -31,6 +32,11 @@ USER gfmduser
 ENV PYTHONPATH=/app
 ENV TOKENIZERS_PARALLELISM=false
 ENV PYTHONUNBUFFERED=1
+ENV GFMD_AUTOMATION_ENABLED=0
+ENV GFMD_EMAIL_SEND_ENABLED=0
+ENV GFMD_SPECTRUM_SEND_ENABLED=0
+ENV GFMD_SPECTRUM_ENROLLMENT_ENABLED=0
+ENV GFMD_SPECTRUM_AUTO_REPLY_ENABLED=0
 
 # Expose port (for health checks and potential web interface)
 EXPOSE 8080

@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install Python dependencies
+RUN pip install --no-cache-dir torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
@@ -28,12 +29,14 @@ USER railwayuser
 ENV PYTHONPATH=/app
 ENV TOKENIZERS_PARALLELISM=false
 ENV PYTHONUNBUFFERED=1
+ENV GFMD_AUTOMATION_ENABLED=0
+ENV GFMD_EMAIL_SEND_ENABLED=0
+ENV GFMD_SPECTRUM_SEND_ENABLED=0
+ENV GFMD_SPECTRUM_ENROLLMENT_ENABLED=0
+ENV GFMD_SPECTRUM_AUTO_REPLY_ENABLED=0
 
 # Railway uses PORT environment variable
-EXPOSE $PORT
+EXPOSE 8080
 
-# Add a simple health check endpoint for Railway
-RUN echo 'from flask import Flask; app = Flask(__name__); @app.route("/health"); def health(): return "OK"; @app.route("/"); def root(): return "GFMD Email Automation Running"; if __name__ == "__main__": app.run(host="0.0.0.0", port=8080)' > health_server.py
-
-# Start both the scheduler and health check server
-CMD python3 health_server.py & python3 complete_sequence_automation.py schedule
+# Start health server (which spawns the scheduler as a subprocess)
+CMD ["python3", "health_server.py"]

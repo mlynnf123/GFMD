@@ -1,0 +1,2 @@
+# Install runtime requirements first. Tests use only isolated in-memory services.
+mongomock==4.3.0

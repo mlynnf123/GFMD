@@ -17,9 +17,10 @@ interface UploadResult {
 interface UploadContactsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  campaign?: string;
 }
 
-export function UploadContactsModal({ isOpen, onClose }: UploadContactsModalProps) {
+export function UploadContactsModal({ isOpen, onClose, campaign }: UploadContactsModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [startSequences, setStartSequences] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -44,6 +45,9 @@ export function UploadContactsModal({ isOpen, onClose }: UploadContactsModalProp
       const formData = new FormData();
       formData.append('file', file);
       formData.append('startSequences', startSequences.toString());
+      if (campaign) {
+        formData.append('campaign', campaign);
+      }
 
       const response = await fetch('/api/upload-contacts', {
         method: 'POST',

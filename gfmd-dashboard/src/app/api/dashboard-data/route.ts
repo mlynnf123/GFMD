@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { MongoClient, ObjectId } from 'mongodb';
 
 // MongoDB connection - using same credentials as Railway deployment
-const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || 
-  'mongodb+srv://solutions-account:GFMDgfmd2280%40%40@cluster0.hdejtab.mongodb.net/?appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || process.env.MONGODB_URI || '';
 
 interface SequenceData {
   _id: string;
@@ -30,54 +29,122 @@ interface ContactData {
   location?: string;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const campaign = searchParams.get('campaign');
+
+    // Build campaign filter (empty = all campaigns).
+    // narc_gone is the legacy default: those docs predate the multi-campaign
+    // migration and have NO `campaign` field, so filtering on {campaign:'narc_gone'}
+    // would match zero docs and blank the dashboard. Treat a missing field as narc_gone.
+    let campaignFilter: Record<string, unknown> = {};
+    if (campaign === 'narc_gone') {
+      campaignFilter = { $or: [{ campaign: 'narc_gone' }, { campaign: { $exists: false } }, { campaign: null }] };
+    } else if (campaign) {
+      campaignFilter = { campaign };
+    }
+
     // Connect to MongoDB (same database as your Railway automation)
     const client = new MongoClient(MONGODB_URI);
     await client.connect();
-    
+
     const db = client.db('gfmd_narc_gone');
     const sequencesCollection = db.collection('email_sequences');
     const contactsCollection = db.collection('contacts');
     const suppressionCollection = db.collection('suppression_list');
     const interactionsCollection = db.collection('interactions');
-    
-    // Get sequence statistics
-    const totalSequences = await sequencesCollection.countDocuments({});
-    const activeSequences = await sequencesCollection.countDocuments({ status: 'active' });
-    const completedSequences = await sequencesCollection.countDocuments({ status: 'completed' });
-    // Note: repliedSequences not used - using interactions-based reply count instead
-    
-    // Get bounce and suppression metrics
-    const totalSuppressed = await suppressionCollection.countDocuments({ status: 'active' });
-    const bouncedEmails = await suppressionCollection.countDocuments({ 
+
+    // Get sequence statistics filtered by campaign
+    const totalSequences = await sequencesCollection.countDocuments(campaignFilter);
+    const activeSequences = await sequencesCollection.countDocuments({ status: 'active', ...campaignFilter });
+    const completedSequences = await sequencesCollection.countDocuments({ status: 'completed', ...campaignFilter });
+
+    // Get bounce and suppression metrics, scoped to the campaign.
+    // suppression_list has no campaign field, so when a campaign is selected we
+    // intersect with that campaign's own contact emails. Without this, every
+    // campaign page showed the GLOBAL suppression/bounce totals (e.g. spectrum
+    // displaying narc_gone's ~768 bounces).
+    let suppressionEmailFilter: Record<string, unknown> = {};
+    if (campaign) {
+      const campaignEmails = (await sequencesCollection.distinct('contact_email', campaignFilter))
+        .filter(Boolean)
+        .map((e: string) => e.toLowerCase());
+      suppressionEmailFilter = { email: { $in: campaignEmails } };
+    }
+    const totalSuppressed = await suppressionCollection.countDocuments({
       status: 'active',
-      reason: { $regex: 'delivery failed|address not found|bounce', $options: 'i' }
+      ...suppressionEmailFilter,
     });
-    
+    const bouncedEmails = await suppressionCollection.countDocuments({
+      status: 'active',
+      reason: { $regex: 'delivery failed|address not found|bounce', $options: 'i' },
+      ...suppressionEmailFilter,
+    });
+
     // Get total contacts made (emails sent)
     const totalEmailsSent = await sequencesCollection.aggregate([
-      { $match: {} },
-      { $group: { _id: null, totalSent: { $sum: '$current_step' } } }
+      { $match: campaignFilter },
+      { $unwind: '$emails_sent' },
+      { $match: { 'emails_sent.actually_sent': true } },
+      { $group: { _id: null, totalSent: { $sum: 1 }, latestSentAt: { $max: '$emails_sent.sent_at' } } }
     ]).toArray();
     const emailsSentCount = totalEmailsSent.length > 0 ? totalEmailsSent[0].totalSent : 0;
-    
-    // Get unique contacts who have replied (excluding bounces/system messages)
-    const uniqueRepliers = await interactionsCollection.distinct('sender_email', {
-      type: 'auto_reply',
+
+    // Get unique contacts who have replied (excluding bounces/system messages).
+    // interactions docs carry no `campaign` field, so we can't filter them by
+    // campaign directly (doing so matched 0 and zeroed the reply metrics). And
+    // sender_email is stored mixed-case while contact_email is lowercase, so we
+    // can't $in-match either. Pull all real repliers, then intersect by
+    // lowercased email against the campaign's sequence contacts in JS.
+    const replyFilter: Record<string, unknown> = {
+      type: { $in: ['auto_reply', 'ai_reply_review', 'spectrum_reply_review'] },
       sender_email: {
         $not: { $regex: 'postmaster|mailer-daemon|mail-daemon|noreply|no-reply|donotreply', $options: 'i' }
       }
-    });
-    const replyCount = uniqueRepliers.length;
+    };
+    // Human replies live under two interaction types: 'auto_reply' (historical,
+    // before the escalation feature) and 'escalation' (current -- genuine human
+    // replies now forwarded to Lisa instead of AI-answered). Count unique real
+    // people across BOTH so the reply metric keeps growing after the switch.
+    const escalationFilter: Record<string, unknown> = {
+      type: 'escalation',
+      sender_email: {
+        $not: { $regex: 'postmaster|mailer-daemon|mail-daemon|noreply|no-reply|donotreply', $options: 'i' }
+      }
+    };
+    const escalationSenders = (await interactionsCollection.distinct('sender_email', escalationFilter))
+      .filter((e): e is string => typeof e === 'string');
+
+    let allRepliers = (await interactionsCollection.distinct('sender_email', replyFilter))
+      .filter((e): e is string => typeof e === 'string')
+      .concat(escalationSenders);
+    let uniqueEscalated = escalationSenders;
+
+    if (campaign) {
+      const campaignEmails = new Set(
+        (await sequencesCollection.distinct('contact_email', campaignFilter))
+          .filter((e): e is string => typeof e === 'string')
+          .map(e => e.toLowerCase().trim())
+      );
+      allRepliers = allRepliers.filter(e => campaignEmails.has(e.toLowerCase().trim()));
+      uniqueEscalated = escalationSenders.filter(e => campaignEmails.has(e.toLowerCase().trim()));
+    }
+    allRepliers = allRepliers.concat(
+      (await sequencesCollection.distinct('contact_email', { ...campaignFilter, status: 'replied' }))
+        .filter((email): email is string => typeof email === 'string')
+    );
+    // Dedupe (a contact may appear in several reply records)
+    const replyCount = new Set(allRepliers.map(e => e.toLowerCase().trim())).size;
+    const escalatedToLisa = new Set(uniqueEscalated.map(e => e.toLowerCase().trim())).size;
 
     // Reply rate: unique repliers / total sequences contacted
     const replyRate = totalSequences > 0 ? ((replyCount / totalSequences) * 100) : 0;
     
     // Get recent sequences for activity table
     const recentSequences = await sequencesCollection
-      .find({})
-      .sort({ updated_at: -1 })
+      .find(campaignFilter)
+      .sort({ last_email_sent: -1, updated_at: -1 })
       .limit(10)
       .toArray() as unknown as SequenceData[];
     
@@ -102,9 +169,6 @@ export async function GET() {
     });
     
     // Get email performance data (last 7 days) - REAL DATA from interactions
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
     const emailPerformance = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
@@ -114,47 +178,36 @@ export async function GET() {
       const endOfDay = new Date(dateStr + 'T23:59:59.999Z');
 
       // Count emails sent on this date from sequences
-      const sent = await sequencesCollection.countDocuments({
-        'emails_sent.sent_at': {
-          $gte: dateStr + 'T00:00:00',
-          $lt: dateStr + 'T23:59:59'
-        }
-      });
+      const sentResult = await sequencesCollection.aggregate([
+        { $match: campaignFilter }, { $unwind: '$emails_sent' },
+        { $match: { 'emails_sent.actually_sent': true, 'emails_sent.sent_at': {
+          $gte: dateStr + 'T00:00:00', $lt: dateStr + 'T23:59:59'
+        } } }, { $count: 'count' }
+      ]).toArray();
+      const sent = sentResult[0]?.count || 0;
 
-      // Get REAL opens from interactions collection (emails with openedAt on this date)
-      const opens = await interactionsCollection.countDocuments({
-        type: 'email_sent',
-        openedAt: { $gte: startOfDay, $lt: endOfDay }
-      });
-
-      // Get REAL replies from interactions collection
-      const repliesFromTracking = await interactionsCollection.countDocuments({
-        type: 'email_sent',
-        repliedAt: { $gte: startOfDay, $lt: endOfDay }
-      });
-
-      // Also count auto_reply type interactions (detected replies)
-      const autoReplies = await interactionsCollection.countDocuments({
-        type: 'auto_reply',
-        timestamp: { $gte: startOfDay, $lt: endOfDay },
-        sender_email: {
+      // Human replies detected on this date: auto_reply (historical) +
+      // escalation (current). Open tracking was removed -- the pixel never
+      // recorded opens, so it always read 0.
+      const replies = await interactionsCollection.countDocuments({
+        type: { $in: ['auto_reply', 'escalation', 'ai_reply_review', 'spectrum_reply_review'] },
+        ...(campaign ? { sender_email: { $in: allRepliers } } : {}),
+        timestamp: { $gte: startOfDay.toISOString(), $lt: endOfDay.toISOString() },
+        ...(!campaign ? { sender_email: {
           $not: { $regex: 'postmaster|mailer-daemon|mail-daemon', $options: 'i' }
-        }
+        } } : {})
       });
-
-      const replies = repliesFromTracking + autoReplies;
 
       emailPerformance.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         sent,
-        opens,
         replies
       });
     }
     
     // Calculate step distribution for pipeline visualization
     const stepDistribution = await sequencesCollection.aggregate([
-      { $match: { status: 'active' } },
+      { $match: { status: 'active', ...campaignFilter } },
       { $group: { _id: '$current_step', count: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ]).toArray();
@@ -162,140 +215,84 @@ export async function GET() {
     // Create lead activity data
     const leadActivity = recentSequences.slice(0, 5).map(sequence => {
       const contact = contactMap.get(sequence.contact_id) || {};
-      const lastEmail = sequence.emails_sent[sequence.emails_sent.length - 1];
-      const daysSinceLastEmail = lastEmail ? 
-        Math.floor((Date.now() - new Date(lastEmail.sent_at).getTime()) / (1000 * 60 * 60 * 24)) : null;
-      
+      const lastEmail = sequence.emails_sent.filter(email => email.actually_sent === true).at(-1);
+
+      // Calculate time since last email in hours
+      let lastContact = 'Never';
+      if (lastEmail) {
+        const hoursSinceLastEmail = Math.floor(
+          (Date.now() - new Date(lastEmail.sent_at).getTime()) / (1000 * 60 * 60)
+        );
+        if (hoursSinceLastEmail < 24) {
+          lastContact = `${hoursSinceLastEmail} ${hoursSinceLastEmail === 1 ? 'hour' : 'hours'} ago`;
+        } else {
+          const days = Math.floor(hoursSinceLastEmail / 24);
+          lastContact = `${days} ${days === 1 ? 'day' : 'days'} ago`;
+        }
+      }
+
+      // Get step info - total steps depends on campaign: centrifuge is a
+      // 5-step sequence, narc_gone (legacy/default) is 6 steps. Hardcoding 5
+      // produced "Step 6 of 5" on the narc_gone page.
+      const totalSteps = campaign === 'spectrum' ? 8 : campaign === 'centrifuge' ? 5 : 6;
+      const currentStep = sequence.current_step;
+      const stage = `Step ${currentStep} of ${totalSteps}`;
+
       return {
         name: contact.name || sequence.contact_email.split('@')[0],
         organization: contact.organization || 'Unknown',
-        stage: getStageFromStep(sequence.current_step),
-        lastContact: lastEmail ? `${daysSinceLastEmail} days ago` : 'Never',
-        daysUnanswered: sequence.status === 'active' ? daysSinceLastEmail : null,
-        status: sequence.status === 'replied' ? 'Engaged' : 
-                sequence.status === 'completed' ? 'Customer' : 'Waiting',
+        stage,
+        lastContact,
+        status: sequence.status === 'replied' ? 'Engaged' :
+                sequence.status === 'completed' ? 'Completed' : sequence.status === 'suppressed' ? 'Suppressed' : 'Waiting',
         contactEmail: sequence.contact_email,
         contactId: sequence.contact_id
       };
     });
     
-    // Get REAL revenue data from orders collection
-    const ordersCollection = db.collection('orders');
-
-    // Get revenue aggregated by month for last 6 months
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-    const revenueAggregation = await ordersCollection.aggregate([
-      {
-        $match: {
-          $or: [
-            { orderDate: { $gte: sixMonthsAgo } },
-            { recordedAt: { $gte: sixMonthsAgo } }
-          ]
-        }
-      },
-      {
-        $group: {
-          _id: {
-            year: { $year: { $ifNull: ['$orderDate', '$recordedAt'] } },
-            month: { $month: { $ifNull: ['$orderDate', '$recordedAt'] } }
-          },
-          revenue: { $sum: { $ifNull: ['$revenue', '$amount', 0] } }
-        }
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
-    ]).toArray();
-
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const revenueOverTime = revenueAggregation.map(item => ({
-      month: monthNames[item._id.month - 1],
-      revenue: item.revenue || 0
-    }));
-
-    // If no orders exist, show empty state instead of fake data
-    if (revenueOverTime.length === 0) {
-      const currentMonth = new Date().getMonth();
-      for (let i = 2; i >= 0; i--) {
-        const monthIndex = (currentMonth - i + 12) % 12;
-        revenueOverTime.push({ month: monthNames[monthIndex], revenue: 0 });
-      }
-    }
-
-    // Calculate total sales from orders
-    const totalSalesAgg = await ordersCollection.aggregate([
-      {
-        $group: {
-          _id: null,
-          total: { $sum: { $ifNull: ['$revenue', '$amount', 0] } }
-        }
-      }
-    ]).toArray();
-    const actualTotalSales = totalSalesAgg.length > 0 ? totalSalesAgg[0].total : 0;
-
-    // Calculate sales change (this week vs last week)
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    const twoWeeksAgo = new Date();
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-
-    const thisWeekSales = await ordersCollection.aggregate([
-      { $match: { $or: [{ orderDate: { $gte: oneWeekAgo } }, { recordedAt: { $gte: oneWeekAgo } }] } },
-      { $group: { _id: null, total: { $sum: { $ifNull: ['$revenue', '$amount', 0] } } } }
-    ]).toArray();
-
-    const lastWeekSales = await ordersCollection.aggregate([
-      { $match: { $or: [
-        { orderDate: { $gte: twoWeeksAgo, $lt: oneWeekAgo } },
-        { recordedAt: { $gte: twoWeeksAgo, $lt: oneWeekAgo } }
-      ] } },
-      { $group: { _id: null, total: { $sum: { $ifNull: ['$revenue', '$amount', 0] } } } }
-    ]).toArray();
-
-    const thisWeekTotal = thisWeekSales.length > 0 ? thisWeekSales[0].total : 0;
-    const lastWeekTotal = lastWeekSales.length > 0 ? lastWeekSales[0].total : 0;
-    const actualSalesChange = lastWeekTotal > 0 ? ((thisWeekTotal - lastWeekTotal) / lastWeekTotal * 100) : 0;
-
-    // Calculate REAL open rate from interactions
-    const totalEmailsWithTracking = await interactionsCollection.countDocuments({
-      type: 'email_sent'
-    });
-    const totalOpens = await interactionsCollection.countDocuments({
-      type: 'email_sent',
-      openedAt: { $exists: true, $ne: null }
-    });
-    const actualOpenRate = totalEmailsWithTracking > 0
-      ? parseFloat(((totalOpens / totalEmailsWithTracking) * 100).toFixed(1))
-      : 0;
-
     await client.close();
 
-    // Return REAL data from your GFMD system
+    let automationRunning = false;
+    let statusLabel = 'Worker status unavailable';
+    try {
+      const response = await fetch('https://gfmd-email-automation-production.up.railway.app/health', {
+        cache: 'no-store', signal: AbortSignal.timeout(5000)
+      });
+      const worker = await response.json();
+      if (worker.integrations) {
+        automationRunning = response.ok && worker.automation?.status === 'running' && worker.integrations.ready === true;
+        statusLabel = !worker.integrations.ready ? 'Integration checks failed' :
+          worker.automation?.status === 'running' ? (worker.sending_enabled ? 'Running' : 'Monitoring; sending disabled') :
+          worker.automation?.status === 'disabled' ? 'Automation disabled' : 'Automation needs attention';
+      }
+    } catch { /* Unverified worker status must not appear active. */ }
+
+    // Return REAL data from your GFMD system.
+    // Open rate and revenue were removed: the tracking pixel never recorded
+    // opens (always 0) and there is no orders/revenue data source.
     const dashboardData = {
-      totalSales: actualTotalSales,
-      salesChange: parseFloat(actualSalesChange.toFixed(1)),
       convertedLeads: replyCount,
-      leadsChange: Math.max(0, replyCount - 3),
       replyRate: parseFloat(replyRate.toFixed(1)),
       replyCount: replyCount,
-      openRate: actualOpenRate,
+      escalatedToLisa,
 
       // Email metrics
       totalEmailsSent: emailsSentCount,
+      latestSuccessfulSend: totalEmailsSent[0]?.latestSentAt || null,
       bouncedEmails,
       totalSuppressed,
-      
+
       totalSequences,
       activeSequences,
       completedSequences,
       emailPerformance,
-      revenueOverTime,
       leadActivity,
       stepDistribution,
       systemStatus: {
-        automationRunning: true,
-        lastContactAddition: new Date().toISOString(),
-        nextScheduledRun: getNextScheduledRun()
+        automationRunning,
+        statusLabel,
+        lastContactAddition: null,
+        nextScheduledRun: null
       }
     };
     
@@ -306,13 +303,10 @@ export async function GET() {
 
     // Return error state with empty data - no fake data
     const errorData = {
-      totalSales: 0,
-      salesChange: 0,
       convertedLeads: 0,
-      leadsChange: 0,
       replyRate: 0,
       replyCount: 0,
-      openRate: 0,
+      escalatedToLisa: 0,
       totalSequences: 0,
       activeSequences: 0,
       completedSequences: 0,
@@ -320,7 +314,6 @@ export async function GET() {
       bouncedEmails: 0,
       totalSuppressed: 0,
       emailPerformance: [],
-      revenueOverTime: [],
       leadActivity: [],
       stepDistribution: [],
       systemStatus: {
@@ -334,24 +327,4 @@ export async function GET() {
 
     return NextResponse.json(errorData, { status: 500 });
   }
-}
-
-function getStageFromStep(step: number): string {
-  if (step <= 1) return 'Initial Contact';
-  if (step <= 2) return 'Follow-up';
-  if (step <= 4) return 'Qualified';
-  return 'Advanced';
-}
-
-function getNextScheduledRun(): string {
-  const now = new Date();
-  const tomorrow8AM = new Date(now);
-  tomorrow8AM.setDate(tomorrow8AM.getDate() + 1);
-  tomorrow8AM.setHours(8, 0, 0, 0);
-  
-  // If tomorrow is weekend, move to Monday
-  if (tomorrow8AM.getDay() === 0) tomorrow8AM.setDate(tomorrow8AM.getDate() + 1); // Sunday -> Monday
-  if (tomorrow8AM.getDay() === 6) tomorrow8AM.setDate(tomorrow8AM.getDate() + 2); // Saturday -> Monday
-  
-  return tomorrow8AM.toISOString();
 }

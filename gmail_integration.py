@@ -22,6 +22,10 @@ from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)
 
+class GmailReadError(RuntimeError):
+    """An inbox check failed; it must never be reported as an empty inbox."""
+
+
 class GmailIntegration:
     """Gmail API integration for sending emails via GFMD agents"""
     
@@ -30,10 +34,11 @@ class GmailIntegration:
         'https://www.googleapis.com/auth/gmail.readonly'
     ]
     
-    def __init__(self, credentials_file: str = "gmail_credentials.json", tracking_domain: str = None):
-        self.credentials_file = credentials_file
-        self.token_file = "gmail_token.json"
+    def __init__(self, credentials_file: str = None, tracking_domain: str = None, token_file: str = None):
+        self.credentials_file = credentials_file or os.environ.get("GMAIL_CREDENTIALS_PATH", "gmail_credentials.json")
+        self.token_file = token_file or os.environ.get("GMAIL_TOKEN_PATH", "gmail_token.json")
         self.service = None
+        self.auth_error = None
         self.tracking_domain = tracking_domain or "gfmd.com"  # Replace with actual tracking domain
         self.tracking_base_url = f"https://{self.tracking_domain}/track"
         
@@ -43,7 +48,8 @@ class GmailIntegration:
         try:
             self._authenticate()
         except Exception as e:
-            logger.warning(f"Gmail authentication failed: {e}")
+            self.auth_error = type(e).__name__
+            logger.warning("Gmail authentication failed; local authorization repair required (%s)", self.auth_error)
             self.service = None
     
     def _setup_credentials_from_env(self):
@@ -143,15 +149,18 @@ class GmailIntegration:
         
         return tracked_html
     
-    def send_email(self, 
+    def send_email(self,
                    to_email: str,
-                   subject: str, 
+                   subject: str,
                    body: str,
                    from_email: Optional[str] = None,
                    html_body: Optional[str] = None,
                    cc: Optional[List[str]] = None,
                    bcc: Optional[List[str]] = None,
-                   enable_tracking: bool = True) -> Dict:
+                   enable_tracking: bool = True,
+                   thread_id: Optional[str] = None,
+                   in_reply_to: Optional[str] = None,
+                   rfc_message_id: Optional[str] = None) -> Dict:
         """
         Send email via Gmail API with optional tracking
         
@@ -164,21 +173,43 @@ class GmailIntegration:
             cc: CC recipients (optional)
             bcc: BCC recipients (optional)
             enable_tracking: Enable open/click tracking (default: True)
-            
+            thread_id: Gmail thread ID to attach this message to (for replies)
+            in_reply_to: Message-ID header of the previous email (for threading)
+
         Returns:
-            Dict with success status, message details, and tracking ID
+            Dict with success status, message details, tracking ID, and thread_id
         """
+        # Credential restoration never grants permission to send. Approval is a
+        # separate deployment/runtime decision, across every campaign and reply.
+        if os.environ.get("GFMD_EMAIL_SEND_ENABLED") != "1":
+            return {"success": False, "action": "disabled", "actually_sent": False,
+                    "error": "Email sending is disabled pending approval"}
+        if not self.service:
+            return {"success": False, "actually_sent": False, "error": "Gmail authentication unavailable"}
         try:
             # Generate tracking ID if tracking is enabled
             tracking_id = self._generate_tracking_id() if enable_tracking else None
             
+            # Prefix subject with Re: for threaded replies
+            if in_reply_to and not subject.startswith("Re: "):
+                subject = f"Re: {subject}"
+
             # Create message
             message = MIMEMultipart('alternative')
             message['To'] = to_email
             message['Subject'] = subject
-            
+            if rfc_message_id:
+                if not re.fullmatch(r'<[^<>\s@]+@[^<>\s@]+>', rfc_message_id):
+                    raise ValueError("Invalid RFC Message-ID")
+                message['Message-ID'] = rfc_message_id
+
             if from_email:
                 message['From'] = from_email
+
+            # Set threading headers for reply chains
+            if in_reply_to:
+                message['In-Reply-To'] = in_reply_to
+                message['References'] = in_reply_to
             
             if cc:
                 message['Cc'] = ', '.join(cc)
@@ -207,9 +238,13 @@ class GmailIntegration:
             raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
             
             # Send email
+            send_body = {'raw': raw_message}
+            if thread_id:
+                send_body['threadId'] = thread_id
+
             result = self.service.users().messages().send(
                 userId='me',
-                body={'raw': raw_message}
+                body=send_body
             ).execute()
             
             logger.info(f"Email sent successfully. Message ID: {result['id']}")
@@ -217,6 +252,8 @@ class GmailIntegration:
             return {
                 'success': True,
                 'message_id': result['id'],
+                'thread_id': result.get('threadId'),
+                'rfc_message_id': rfc_message_id,
                 'tracking_id': tracking_id,
                 'to': to_email,
                 'subject': subject,
@@ -242,7 +279,24 @@ class GmailIntegration:
                 'tracking_id': tracking_id if 'tracking_id' in locals() else None
             }
     
-    def send_gfmd_outreach_email(self, 
+    def get_message_thread_headers(self, message_id: str) -> Dict:
+        """Read RFC threading metadata; Gmail's API ID is not an RFC Message-ID."""
+        if self.service is None:
+            return {"success": False, "error": "Gmail service unavailable"}
+        try:
+            message = self.service.users().messages().get(
+                userId='me', id=message_id, format='metadata', metadataHeaders=['Message-ID', 'Subject']
+            ).execute()
+            headers = {h['name'].lower(): h['value'] for h in message.get('payload', {}).get('headers', [])}
+            rfc_id = headers.get('message-id', '')
+            subject = headers.get('subject', '')
+            if not re.fullmatch(r'<[^<>\s@]+@[^<>\s@]+>', rfc_id) or not subject or '\r' in subject or '\n' in subject or not message.get('threadId'):
+                return {"success": False, "error": "Missing or invalid thread metadata"}
+            return {"success": True, "thread_id": message['threadId'], "rfc_message_id": rfc_id, "subject": subject}
+        except Exception:
+            return {"success": False, "error": "Could not read Gmail thread metadata"}
+
+    def send_gfmd_outreach_email(self,
                                 prospect: Dict,
                                 email_content: str,
                                 subject: str,
@@ -330,8 +384,7 @@ class GmailIntegration:
         """
         try:
             if not self.service:
-                logger.warning("Gmail service not initialized")
-                return []
+                raise GmailReadError("Gmail authentication unavailable")
 
             results = self.service.users().messages().list(
                 userId='me',
@@ -390,15 +443,14 @@ class GmailIntegration:
                     email_list.append(email_data)
 
                 except Exception as e:
-                    logger.warning(f"Failed to process message {message['id']}: {e}")
-                    continue
+                    raise GmailReadError("Inbox message retrieval failed") from e
 
             logger.info(f"Retrieved {len(email_list)} emails matching query: {query}")
             return email_list
 
         except Exception as e:
-            logger.error(f"Failed to get emails: {e}")
-            return []
+            logger.error("Inbox read failed (%s)", type(e).__name__)
+            raise GmailReadError("Inbox read failed; no successful scan recorded") from e
 
     def get_sent_emails(self, query: str = "from:me", max_results: int = 10) -> List[Dict]:
         """
@@ -486,8 +538,8 @@ class GmailIntegration:
             return replies
             
         except Exception as e:
-            logger.error(f"Failed to check for replies: {e}")
-            return []
+            logger.error("Reply scan failed (%s)", type(e).__name__)
+            raise GmailReadError("Reply scan failed; no successful scan recorded") from e
     
     def _extract_reply_info(self, message: Dict) -> Optional[Dict]:
         """Extract reply information from a Gmail message"""

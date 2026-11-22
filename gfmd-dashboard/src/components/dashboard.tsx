@@ -12,37 +12,29 @@ import { UploadContactsModal } from './upload-contacts-modal';
 
 // Define the types for our GFMD data
 export interface DashboardData {
-  totalSales: number;
-  salesChange: number;
   convertedLeads: number;
-  leadsChange: number;
   replyRate: number;
   replyCount?: number;
-  openRate: number;
+  escalatedToLisa?: number;
   totalSequences: number;
   activeSequences: number;
   completedSequences: number;
-  
+
   // Email metrics
   totalEmailsSent?: number;
+  latestSuccessfulSend?: string | null;
   bouncedEmails?: number;
   totalSuppressed?: number;
   emailPerformance: {
     date: string;
     sent: number;
-    opens: number;
     replies: number;
-  }[];
-  revenueOverTime: {
-    month: string;
-    revenue: number;
   }[];
   leadActivity: {
     name: string;
     organization: string;
     stage: string;
     lastContact: string;
-    daysUnanswered: number | null;
     status: 'Engaged' | 'Waiting' | 'Customer';
     contactEmail?: string;
     contactId?: string;
@@ -53,8 +45,9 @@ export interface DashboardData {
   }[];
   systemStatus: {
     automationRunning: boolean;
-    lastContactAddition: string;
-    nextScheduledRun: string;
+    statusLabel?: string;
+    lastContactAddition: string | null;
+    nextScheduledRun: string | null;
   };
   error?: string;
 }
@@ -71,7 +64,7 @@ export function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const response = await fetch('/api/dashboard-data', {
+      const response = await fetch('/api/dashboard-data?campaign=narc_gone', {
         cache: 'no-store' // Always fetch fresh data
       });
       const result = await response.json();
@@ -159,7 +152,7 @@ export function Dashboard() {
             className="px-4 py-2 rounded font-normal hover:opacity-90"
             style={{backgroundColor: '#efebe2', color: '#272030'}}
           >
-            Suppression List
+            Excluded Contacts
           </button>
           <div className="text-sm font-light" style={{color: '#272030'}}>
             Last updated: {lastRefresh.toLocaleTimeString()}
@@ -213,12 +206,12 @@ export function Dashboard() {
         <p>
           GFMD Automation System • Railway Deployment Status: 
           <span className="ml-1 font-normal" style={{color: '#4e2780'}}>
-            {data.systemStatus.automationRunning ? 'ACTIVE' : 'INACTIVE'}
+            {data.systemStatus.statusLabel || 'Status unavailable'}
           </span>
         </p>
-        <p className="mt-1">
+        {data.systemStatus.nextScheduledRun && <p className="mt-1">
           Next scheduled contact addition: {new Date(data.systemStatus.nextScheduledRun).toLocaleString()}
-        </p>
+        </p>}
       </div>
     </div>
   );

@@ -68,11 +68,11 @@ class EmailReplyMonitor:
         r'away.*message'
     ]
 
-    def __init__(self):
+    def __init__(self, storage=None, gmail=None):
         """Initialize reply monitor with database and Gmail connections"""
         try:
-            self.storage = MongoDBStorage()
-            self.gmail = GmailIntegration()
+            self.storage = storage if storage is not None else MongoDBStorage()
+            self.gmail = gmail if gmail is not None else GmailIntegration()
             logger.info("✅ Email Reply Monitor initialized")
         except Exception as e:
             logger.error(f"❌ Failed to initialize Email Reply Monitor: {e}")
@@ -318,8 +318,25 @@ class EmailReplyMonitor:
 
                     continue  # Skip further processing for system emails
 
+                # Spectrum relevance must be checked before any suppression write.
+                # Quoted outreach contains opt-out words and is not a new opt-out.
+                spectrum = self.storage.db.email_sequences.find_one(
+                    {"contact_email": sender_email.lower(), "campaign": "spectrum"}, sort=[("updated_at", -1)]
+                )
+                if spectrum:
+                    from spectrum_campaign import spectrum_reply_review, spectrum_reply_text
+                    review = spectrum_reply_review({"from_email": sender_email, "message_id": email.get("id"),
+                                                    "thread_id": email.get("thread_id"), "content": content}, spectrum)
+                    if not review.get("success"):
+                        continue
+                    content = spectrum_reply_text(content)
+
                 # Analyze the email content for human replies
                 analysis = self.analyze_email_content(content, subject)
+                if spectrum and analysis.get("response_type") == "out_of_office" and not any(
+                    keyword not in {"out of office", "on vacation"} for keyword in analysis.get("keywords_found", [])
+                ):
+                    continue
 
                 if analysis['should_suppress']:
                     # Add to suppression list
@@ -352,12 +369,13 @@ class EmailReplyMonitor:
                 except Exception as e:
                     logger.warning(f"Failed to record reply: {e}")
 
+            stats['success'] = True
             logger.info(f"Processed {stats['replies_checked']} replies, added {stats['suppressions_added']} suppressions")
             return stats
 
         except Exception as e:
-            logger.error(f"Error processing Gmail replies: {e}")
-            return stats
+            logger.error("Gmail reply processing failed (%s); no successful scan recorded", type(e).__name__)
+            raise
 
     def check_suppression_status(self, email: str) -> bool:
         """

@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server';
 import { MongoClient, ObjectId } from 'mongodb';
 
 // MongoDB connection - using same credentials as Railway deployment
-const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || 
-  'mongodb+srv://solutions-account:GFMDgfmd2280%40%40@cluster0.hdejtab.mongodb.net/?appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_CONNECTION_STRING || process.env.MONGODB_URI || '';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const email = searchParams.get('email');
     const contactId = searchParams.get('contactId');
+    const campaign = searchParams.get('campaign');
     
     if (!email) {
       return NextResponse.json({ error: 'Email parameter required' }, { status: 400 });
@@ -37,10 +37,12 @@ export async function GET(request: Request) {
       contact = await contactsCollection.findOne({ email: email.toLowerCase() });
     }
     
-    // Get sequence for this contact
-    const sequence = await sequencesCollection.findOne({ 
-      contact_email: email.toLowerCase() 
-    });
+    // Get sequence for this contact, optionally filtered by campaign
+    const seqFilter: Record<string, unknown> = { contact_email: email.toLowerCase() };
+    if (campaign) {
+      seqFilter.campaign = campaign;
+    }
+    const sequence = await sequencesCollection.findOne(seqFilter);
     
     await client.close();
     

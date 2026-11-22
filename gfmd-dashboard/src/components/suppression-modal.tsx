@@ -27,9 +27,10 @@ interface SuppressionStats {
 interface SuppressionModalProps {
   isOpen: boolean;
   onClose: () => void;
+  campaign?: string;
 }
 
-export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
+export function SuppressionModal({ isOpen, onClose, campaign }: SuppressionModalProps) {
   const [suppressions, setSuppressions] = useState<SuppressionRecord[]>([]);
   const [stats, setStats] = useState<SuppressionStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,11 +54,14 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
         page: currentPage.toString(),
         limit: '20'
       });
-      
+
       if (searchTerm) {
         params.append('search', searchTerm);
       }
-      
+      if (campaign) {
+        params.append('campaign', campaign);
+      }
+
       const response = await fetch(`/api/suppression-list?${params}`);
       const data = await response.json();
       
@@ -95,12 +99,12 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
         setNewSuppressionEmail('');
         setNewSuppressionReason('');
         fetchSuppressions(); // Refresh list
-        alert('Contact successfully suppressed');
+        alert('Contact excluded successfully');
       } else {
-        alert(result.error || 'Failed to add suppression');
+        alert(result.error || 'Failed to exclude contact');
       }
     } catch (error) {
-      alert('Error adding suppression');
+      alert('Error excluding contact');
       console.error(error);
     } finally {
       setIsAddingSuppress(false);
@@ -108,7 +112,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
   };
 
   const removeSuppression = async (email: string) => {
-    if (!confirm(`Are you sure you want to unsuppress ${email}?`)) {
+    if (!confirm(`Are you sure you want to restore ${email} to the contact list?`)) {
       return;
     }
 
@@ -121,12 +125,12 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
       
       if (response.ok) {
         fetchSuppressions(); // Refresh list
-        alert('Contact successfully unsuppressed');
+        alert('Contact restored successfully');
       } else {
-        alert(result.error || 'Failed to remove suppression');
+        alert(result.error || 'Failed to restore contact');
       }
     } catch (error) {
-      alert('Error removing suppression');
+      alert('Error restoring contact');
       console.error(error);
     }
   };
@@ -137,7 +141,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden">
         <div className="flex justify-between items-center p-6" style={{borderBottom: '1px solid #efebe2'}}>
-          <h2 className="text-2xl font-normal" style={{color: '#272030'}}>Email Suppression List</h2>
+          <h2 className="text-2xl font-normal" style={{color: '#272030'}}>Excluded Contacts</h2>
           <button
             onClick={onClose}
             className="text-2xl font-light hover:opacity-70"
@@ -157,7 +161,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
                     {stats.total_suppressed}
                   </div>
                   <p className="text-sm font-light" style={{color: '#272030'}}>
-                    Total Suppressed
+                    Total Excluded
                   </p>
                 </CardContent>
               </Card>
@@ -179,7 +183,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
                     {stats.by_reason.length}
                   </div>
                   <p className="text-sm font-light" style={{color: '#272030'}}>
-                    Suppression Types
+                    Exclusion Types
                   </p>
                 </CardContent>
               </Card>
@@ -190,7 +194,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
           <Card style={{borderColor: '#efebe2', backgroundColor: '#ffffff'}} className="mb-6">
             <CardHeader>
               <CardTitle className="text-lg font-normal" style={{color: '#272030'}}>
-                Add Manual Suppression
+                Add Contact to Exclusion List
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -205,7 +209,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
                 />
                 <input
                   type="text"
-                  placeholder="Reason for suppression"
+                  placeholder="Reason for exclusion"
                   value={newSuppressionReason}
                   onChange={(e) => setNewSuppressionReason(e.target.value)}
                   className="px-3 py-2 border rounded font-light"
@@ -217,7 +221,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
                   className="px-4 py-2 rounded font-normal text-white hover:opacity-90 disabled:opacity-50"
                   style={{backgroundColor: '#4e2780'}}
                 >
-                  {isAddingSuppress ? 'Adding...' : 'Add Suppression'}
+                  {isAddingSuppress ? 'Adding...' : 'Exclude Contact'}
                 </button>
               </div>
             </CardContent>
@@ -238,7 +242,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{borderColor: '#4e2780'}}></div>
-              <span className="ml-3 font-light" style={{color: '#272030'}}>Loading suppressions...</span>
+              <span className="ml-3 font-light" style={{color: '#272030'}}>Loading excluded contacts...</span>
             </div>
           ) : (
             <Table>
@@ -247,7 +251,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
                   <TableHead className="font-light" style={{color: '#272030'}}>Email</TableHead>
                   <TableHead className="font-light" style={{color: '#272030'}}>Reason</TableHead>
                   <TableHead className="font-light" style={{color: '#272030'}}>Source</TableHead>
-                  <TableHead className="font-light" style={{color: '#272030'}}>Suppressed Date</TableHead>
+                  <TableHead className="font-light" style={{color: '#272030'}}>Excluded Date</TableHead>
                   <TableHead className="font-light" style={{color: '#272030'}}>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -280,7 +284,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
                         className="px-3 py-1 rounded text-sm font-light hover:opacity-70"
                         style={{backgroundColor: '#272030', color: 'white'}}
                       >
-                        Unsuppress
+                        Restore
                       </button>
                     </TableCell>
                   </TableRow>
@@ -291,7 +295,7 @@ export function SuppressionModal({ isOpen, onClose }: SuppressionModalProps) {
           
           {!loading && suppressions.length === 0 && (
             <div className="text-center py-12">
-              <p className="font-light" style={{color: '#272030'}}>No suppressed contacts found</p>
+              <p className="font-light" style={{color: '#272030'}}>No excluded contacts found</p>
             </div>
           )}
 

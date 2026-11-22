@@ -28,12 +28,12 @@ class GroqBaseAgent:
         self,
         agent_id: str,
         role: AgentRole,
-        model: str = "llama-3.3-70b-versatile",
+        model: str = None,
         temperature: float = 0.7
     ):
         self.agent_id = agent_id
         self.role = role
-        self.model = model
+        self.model = model or os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
         self.temperature = temperature
 
         # Initialize Groq client
@@ -75,14 +75,17 @@ class GroqBaseAgent:
             ]
 
             # Call Groq API
-            response = self.client.chat.completions.create(
+            options = {"reasoning_effort": "low"} if self.model.startswith("openai/gpt-oss-") else {}
+            response = self.client.with_options(timeout=30.0, max_retries=0).chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
-                max_tokens=2048
+                max_completion_tokens=2048, response_format={"type": "json_object"}, **options
             )
 
             # Extract response
+            if response.choices[0].finish_reason != "stop":
+                raise ValueError("AI output was incomplete")
             content = response.choices[0].message.content
 
             # Update metrics
