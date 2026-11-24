@@ -324,12 +324,16 @@ class EmailReplyMonitor:
                     {"contact_email": sender_email.lower(), "campaign": "spectrum"}, sort=[("updated_at", -1)]
                 )
                 if spectrum:
-                    from spectrum_campaign import spectrum_reply_review, spectrum_reply_text
+                    from spectrum_campaign import spectrum_reply_review
                     review = spectrum_reply_review({"from_email": sender_email, "message_id": email.get("id"),
                                                     "thread_id": email.get("thread_id"), "content": content}, spectrum)
                     if not review.get("success"):
                         continue
-                    content = spectrum_reply_text(content)
+
+                # Applies to every campaign: quoted pitches and image placeholders
+                # are not new requests to stop receiving email.
+                from spectrum_campaign import spectrum_reply_text
+                content = spectrum_reply_text(content)
 
                 # Analyze the email content for human replies
                 analysis = self.analyze_email_content(content, subject)

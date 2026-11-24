@@ -1,5 +1,9 @@
 # GFMD production restoration — November 22, 2026
 
+The subsequent November 24 worker update is documented in
+[REPLY_POLICY_UPDATE.md](REPLY_POLICY_UPDATE.md). Its release manifest and live
+verification supersede this dated worker deployment ID and test count.
+
 Deployment and automatic email/reply activation were explicitly approved by the
 user. Railway CLI access was restricted to the GFMD workspace and project.
 

@@ -313,3 +313,57 @@ class RuntimeIntegrationTests(unittest.IsolatedAsyncioTestCase):
             response = health_server.app.test_client().get('/health')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json['automation']['status'], 'starting')
+
+    def test_reply_limit_policy_is_contact_specific_and_requires_approval(self):
+        policies = self.db.reply_policies
+        policies.insert_one({"_id": "alex@example.invalid", "enabled": True,
+                             "approved": True, "max_auto_replies": 4})
+        self.assertEqual(self.reply_system._get_auto_reply_limit("Alex@Example.Invalid"), 4)
+        self.assertEqual(self.reply_system._get_auto_reply_limit("other@example.invalid"), 2)
+        policies.update_one({"_id": "alex@example.invalid"}, {"$set": {"approved": False}})
+        self.assertEqual(self.reply_system._get_auto_reply_limit("alex@example.invalid"), 2)
+
+    def test_reply_limit_rejects_invalid_values_and_holds_on_database_failure(self):
+        for invalid in (True, "4", -1, 0, 11, None):
+            self.db.reply_policies.replace_one({"_id": "alex@example.invalid"}, {
+                "_id": "alex@example.invalid", "enabled": True, "approved": True,
+                "max_auto_replies": invalid}, upsert=True)
+            self.assertEqual(self.reply_system._get_auto_reply_limit("alex@example.invalid"), 2)
+        with patch.object(self.db.reply_policies, "find_one", side_effect=RuntimeError("offline")):
+            self.assertEqual(self.reply_system._get_auto_reply_limit("alex@example.invalid"), 0)
+
+    async def test_approved_individual_limit_allows_two_more_without_erasing_history(self):
+        await self.process()
+        self.db.email_sequences.update_one({"_id": self.sequence_id}, {"$set": {"campaign": "centrifuge"}})
+        self.db.interactions.insert_many([{"type": "auto_reply", "sender_email": "alex@example.invalid",
+                                          "success": True, "original_message_id": f"old-{i}"} for i in range(2)])
+        self.reply_system.reply_agent.execute = AsyncMock(return_value={"success": True, "subject": "Re: Product",
+                                                                        "reply_body": "Reviewed synthetic answer"})
+        def reply(i):
+            return {"from_email": "alex@example.invalid", "message_id": f"new-{i}", "thread_id": "fake-thread-1",
+                    "subject": "Re: Product", "content": "Please send more information."}
+        await self.reply_system.process_reply(reply("default-held"))
+        self.assertEqual(len(self.transport.messages), 1)
+        self.db.reply_policies.insert_one({"_id": "alex@example.invalid", "enabled": True,
+                                          "approved": True, "max_auto_replies": 4})
+        headers = {"success": True, "thread_id": "fake-thread-1",
+                   "rfc_message_id": "<incoming@example.invalid>", "subject": "Re: Product"}
+        with patch.object(self.gmail, "get_message_thread_headers", return_value=headers):
+            for i in range(3):
+                await self.reply_system.process_reply(reply(i))
+        self.assertEqual(len(self.transport.messages), 3)
+        self.assertEqual(self.db.interactions.count_documents({"type": "auto_reply", "success": True}), 4)
+        self.assertEqual(self.db.interactions.count_documents({"original_message_id": {"$in": ["old-0", "old-1"]}}), 2)
+
+    def test_non_spectrum_daily_scan_ignores_quotes_but_honors_a_new_optout(self):
+        self.db.email_sequences.update_one({"_id": self.sequence_id}, {"$set": {"campaign": "narc_gone"}})
+        monitor = email_reply_monitor.EmailReplyMonitor(storage=self.storage, gmail=self.gmail)
+        inbox = [{"id": "pricing", "from": "alex@example.invalid", "subject": "Re: Product",
+                  "body": "Please send pricing.\n\nOn Tuesday, Meranda wrote:\n[Image removed by sender] Wrong person?"}]
+        with patch.object(self.gmail, "get_emails", return_value=inbox):
+            self.assertTrue(monitor.process_gmail_replies()["success"])
+        self.assertEqual(self.db.suppression_list.count_documents({}), 0)
+        inbox[0]["body"] = "Please unsubscribe me.\n\nOn Tuesday, Meranda wrote:\nInformation"
+        with patch.object(self.gmail, "get_emails", return_value=inbox):
+            self.assertTrue(monitor.process_gmail_replies()["success"])
+        self.assertEqual(self.db.suppression_list.count_documents({"email": "alex@example.invalid", "status": "active"}), 1)

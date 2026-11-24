@@ -65,6 +65,13 @@ explicitly start a sequence. Incoming email is untrusted data; opt-outs stop
 outreach, temporary absence requires review, and ambiguous send attempts must be
 reconciled before retrying.
 
+Automatic replies default to two per contact. Explicitly approved, bounded
+exceptions are stored in the private MongoDB `reply_policies` collection, keyed
+by normalized email, with `enabled: true`, `approved: true` and an integer
+`max_auto_replies` from 2 through 10. Historical replies still count; changing a
+limit does not erase history, lift an exclusion, or restart a sequence. Policy
+read failures hold automatic responses. Never publish recipient policy records.
+
 Recovery archives, OAuth files, private audit/mailbox reports and machine-specific
 Python environments are intentionally excluded. The sanitized release manifest
 retains source hashes and deployed identities without those local dependencies.

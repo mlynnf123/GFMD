@@ -1,168 +1,168 @@
 {
-  "release": "2026-11-22-restoration",
+  "release": "2026-11-24-reply-policy",
   "files": [
     {
       "path": ".dockerignore",
       "sha256": "6cd81099f290d1f8c1528dc55b76ccf23116e68aff921774301d7b1c8828c542",
-      "bytes": 826,
-      "sha256_lf": "0ac875b21ba3f206f99ba20488ce5de86bd09c48196c6912da268530533e9f82"
+      "sha256_lf": "0ac875b21ba3f206f99ba20488ce5de86bd09c48196c6912da268530533e9f82",
+      "bytes": 826
     },
     {
       "path": "Dockerfile",
       "sha256": "5f637819e3f4fb85cca6184b92a3fd872f41f27072d2d5f4bfc5f68e2a2627cd",
-      "bytes": 1240,
-      "sha256_lf": "c0bbcfc8b1596d586bb6c3baa2fc6b43f0b03e5206b12e1b16d5f89f85c96a6d"
+      "sha256_lf": "c0bbcfc8b1596d586bb6c3baa2fc6b43f0b03e5206b12e1b16d5f89f85c96a6d",
+      "bytes": 1240
     },
     {
       "path": "Dockerfile.railway",
       "sha256": "94fb6deded91111339f1b5f9d16990e32788dd342873becf11bdab31ec279c99",
-      "bytes": 1089,
-      "sha256_lf": "94fb6deded91111339f1b5f9d16990e32788dd342873becf11bdab31ec279c99"
+      "sha256_lf": "94fb6deded91111339f1b5f9d16990e32788dd342873becf11bdab31ec279c99",
+      "bytes": 1089
     },
     {
       "path": "ai_auto_reply_system.py",
-      "sha256": "ef04813464cf653410d4fc46d2c22558d5509a0830e7d8add8e644cc65feed8e",
-      "bytes": 45638,
-      "sha256_lf": "ef04813464cf653410d4fc46d2c22558d5509a0830e7d8add8e644cc65feed8e"
+      "sha256": "c83d5c1f9d43f9b9b76b52e0c2e032659c6c1b19b659fb2abe0a23a0200299bc",
+      "sha256_lf": "c83d5c1f9d43f9b9b76b52e0c2e032659c6c1b19b659fb2abe0a23a0200299bc",
+      "bytes": 46535
     },
     {
       "path": "business_day_utils.py",
       "sha256": "fd6fce6a920550bac580bc94e8c0e4b3c430ff1351b564d9a9d9d0963d35cf0a",
-      "bytes": 6697,
-      "sha256_lf": "4d523003caf9f41630c38c6c740bcdea3d95eea9cedb5d45513ada7e372273ef"
+      "sha256_lf": "4d523003caf9f41630c38c6c740bcdea3d95eea9cedb5d45513ada7e372273ef",
+      "bytes": 6697
     },
     {
       "path": "complete_sequence_automation.py",
       "sha256": "0f66a886e0933e7561203954739dce17212103816d041e75d9b3821593184e06",
-      "bytes": 46614,
-      "sha256_lf": "0f66a886e0933e7561203954739dce17212103816d041e75d9b3821593184e06"
+      "sha256_lf": "0f66a886e0933e7561203954739dce17212103816d041e75d9b3821593184e06",
+      "bytes": 46614
     },
     {
       "path": "email_reply_monitor.py",
-      "sha256": "87128f59168e42b8e85eed17e7106a1cb57bc316eff11b5c16da7befd00965bd",
-      "bytes": 20036,
-      "sha256_lf": "34200863b6a3a81507065fd64dc975c3b5f2ffc0520dc4cc047257b8b6f9d41a"
+      "sha256": "cabc77bee31905bc93fe935c59cd864b709a00d8561c8920586966607fc95793",
+      "sha256_lf": "2d99bc3314eed1ec621506b57a58f2f978973b8dc7869aef74d6d9c65dfe0de4",
+      "bytes": 20229
     },
     {
       "path": "email_sequence_templates.py",
       "sha256": "d13a0be414307637f9d6194ee87038bf9b4bf48c6398553872d2212c952e1229",
-      "bytes": 16843,
-      "sha256_lf": "d13a0be414307637f9d6194ee87038bf9b4bf48c6398553872d2212c952e1229"
+      "sha256_lf": "d13a0be414307637f9d6194ee87038bf9b4bf48c6398553872d2212c952e1229",
+      "bytes": 16843
     },
     {
       "path": "email_styling_rules.py",
       "sha256": "427abbf7cc7353d1a0da6bfd539d5673a1da9ab568fcce0cbb55a6789993d114",
-      "bytes": 10251,
-      "sha256_lf": "ebfc86d421903ffdbfb9a950901e0f13fbe578ed8e502db2f0b30c2fbce3d917"
+      "sha256_lf": "ebfc86d421903ffdbfb9a950901e0f13fbe578ed8e502db2f0b30c2fbce3d917",
+      "bytes": 10251
     },
     {
       "path": "gmail_integration.py",
       "sha256": "153b78f2a52101db4367af55e82e610eb0079a9d72cfe5fd60be0b226b0549ef",
-      "bytes": 28219,
-      "sha256_lf": "153b78f2a52101db4367af55e82e610eb0079a9d72cfe5fd60be0b226b0549ef"
+      "sha256_lf": "153b78f2a52101db4367af55e82e610eb0079a9d72cfe5fd60be0b226b0549ef",
+      "bytes": 28219
     },
     {
       "path": "groq_base_agent.py",
       "sha256": "ff244e0836aa06a718737e20d7b9058332a9d23621e21acaed78c776bf4142f3",
-      "bytes": 5135,
-      "sha256_lf": "02347ff6f17b26cf13d3bd7b394c6a9fb94628984049219f02cc743b7c5c8aaf"
+      "sha256_lf": "02347ff6f17b26cf13d3bd7b394c6a9fb94628984049219f02cc743b7c5c8aaf",
+      "bytes": 5135
     },
     {
       "path": "groq_email_composer_agent.py",
       "sha256": "3857ccefd5a62f39981b4a138f01a22beb753cd55d8b14a72cbdbfc97a553e8a",
-      "bytes": 38667,
-      "sha256_lf": "bf8109084af8f0e323f57aa64cf662e94e007c9e3ea861a05c5ca135e502f79b"
+      "sha256_lf": "bf8109084af8f0e323f57aa64cf662e94e007c9e3ea861a05c5ca135e502f79b",
+      "bytes": 38667
     },
     {
       "path": "health_server.py",
       "sha256": "f50ef4a648c5544ec27f2d595c492cc5d9c351c738504343018ec25e5574fe1c",
-      "bytes": 4391,
-      "sha256_lf": "c4f50e673a6ebd2dba232f20a64bb243aa2890d7885c6ee6c84da50832eead44"
+      "sha256_lf": "c4f50e673a6ebd2dba232f20a64bb243aa2890d7885c6ee6c84da50832eead44",
+      "bytes": 4391
     },
     {
       "path": "knowledge_base/gfmd_centrifuge_product.md",
       "sha256": "af8f372ec96732dec189ebbb9e576be210d35ddf922cd3ae26c09a8999568b9c",
-      "bytes": 7187,
-      "sha256_lf": "af8f372ec96732dec189ebbb9e576be210d35ddf922cd3ae26c09a8999568b9c"
+      "sha256_lf": "af8f372ec96732dec189ebbb9e576be210d35ddf922cd3ae26c09a8999568b9c",
+      "bytes": 7187
     },
     {
       "path": "knowledge_base/gfmd_narc_gone_findings.md",
       "sha256": "fbf34bc4da83f1e304d9350a3e721305a804dde4d7524853fce094ec0fadcfc0",
-      "bytes": 5588,
-      "sha256_lf": "f8959ccd3854d1096e6b8ce44d38dbb7a0ac5a033d404858ff0d076f8ba4c651"
+      "sha256_lf": "f8959ccd3854d1096e6b8ce44d38dbb7a0ac5a033d404858ff0d076f8ba4c651",
+      "bytes": 5588
     },
     {
       "path": "knowledge_base/gfmd_spectrum_product.md",
       "sha256": "366616bb9f3eb3503dd75324a7a3a7220f8f5c3ef40f665c9c536ab8fd6a741c",
-      "bytes": 3311,
-      "sha256_lf": "366616bb9f3eb3503dd75324a7a3a7220f8f5c3ef40f665c9c536ab8fd6a741c"
+      "sha256_lf": "366616bb9f3eb3503dd75324a7a3a7220f8f5c3ef40f665c9c536ab8fd6a741c",
+      "bytes": 3311
     },
     {
       "path": "knowledge_base/hospital_lab_pain_points.md",
       "sha256": "f8cb5f3ad5007d617933fb24ed98d1a516f37d32131a17a1c20894d490950e92",
-      "bytes": 2307,
-      "sha256_lf": "f8cb5f3ad5007d617933fb24ed98d1a516f37d32131a17a1c20894d490950e92"
+      "sha256_lf": "f8cb5f3ad5007d617933fb24ed98d1a516f37d32131a17a1c20894d490950e92",
+      "bytes": 2307
     },
     {
       "path": "knowledge_base/law_enforcement_pain_points.md",
       "sha256": "66c0eecd0d29349a355a64c0d12e9e1bb48ef03350b1f562db9c48831c77ccd2",
-      "bytes": 3918,
-      "sha256_lf": "45cdd4e2c60c161c513ef8f1831443ba32e5f9e9c5b0511e8c01ba818a2237f5"
+      "sha256_lf": "45cdd4e2c60c161c513ef8f1831443ba32e5f9e9c5b0511e8c01ba818a2237f5",
+      "bytes": 3918
     },
     {
       "path": "knowledge_base/snf_ltc_pain_points.md",
       "sha256": "4419ecde472443539190826065642f41ba54da450fa10f0bdb15a5c263830c44",
-      "bytes": 2281,
-      "sha256_lf": "4419ecde472443539190826065642f41ba54da450fa10f0bdb15a5c263830c44"
+      "sha256_lf": "4419ecde472443539190826065642f41ba54da450fa10f0bdb15a5c263830c44",
+      "bytes": 2281
     },
     {
       "path": "mongodb_storage.py",
       "sha256": "5933530d2db9a1b83382879bf6756ea3dda3923afc525a6e801eb008b03719b8",
-      "bytes": 22139,
-      "sha256_lf": "155d4162f8ff74b59f500082f6b78dd10ce1761d3d366e02f70381dab3c89f80"
+      "sha256_lf": "155d4162f8ff74b59f500082f6b78dd10ce1761d3d366e02f70381dab3c89f80",
+      "bytes": 22139
     },
     {
       "path": "production_readiness.py",
       "sha256": "33c3bdb2bb7aec48c2f28ce11e7f8c29ba0bc8a5473d63477ad6d18ba9f92d2a",
-      "bytes": 2931,
-      "sha256_lf": "33c3bdb2bb7aec48c2f28ce11e7f8c29ba0bc8a5473d63477ad6d18ba9f92d2a"
+      "sha256_lf": "33c3bdb2bb7aec48c2f28ce11e7f8c29ba0bc8a5473d63477ad6d18ba9f92d2a",
+      "bytes": 2931
     },
     {
       "path": "requirements.txt",
       "sha256": "417a0ea0488053b3143c26ea7f15765e07f91b841fbf77eba89f24442d993890",
-      "bytes": 579,
-      "sha256_lf": "60489f96577a90ad0c242296ebd05a9c059aa77b8df5791f8c4330ba8668339d"
+      "sha256_lf": "60489f96577a90ad0c242296ebd05a9c059aa77b8df5791f8c4330ba8668339d",
+      "bytes": 579
     },
     {
       "path": "spectrum_ai.py",
       "sha256": "7ef3c04290205e6914c062b51a3c3d9f9453a6fa79a96c1806ea4f706b22fda5",
-      "bytes": 7262,
-      "sha256_lf": "7ef3c04290205e6914c062b51a3c3d9f9453a6fa79a96c1806ea4f706b22fda5"
+      "sha256_lf": "7ef3c04290205e6914c062b51a3c3d9f9453a6fa79a96c1806ea4f706b22fda5",
+      "bytes": 7262
     },
     {
       "path": "spectrum_campaign.py",
       "sha256": "e91c8a0d445104217d4b1e6b7e8157fdbcb86e47f10bedfabd1d1c702a5cc285",
-      "bytes": 11612,
-      "sha256_lf": "e91c8a0d445104217d4b1e6b7e8157fdbcb86e47f10bedfabd1d1c702a5cc285"
+      "sha256_lf": "e91c8a0d445104217d4b1e6b7e8157fdbcb86e47f10bedfabd1d1c702a5cc285",
+      "bytes": 11612
     },
     {
       "path": "spectrum_worker.py",
       "sha256": "332a6673879265436083b8f6475293d2c8001e1f7ea90f1dd06919f70d8977aa",
-      "bytes": 12123,
-      "sha256_lf": "332a6673879265436083b8f6475293d2c8001e1f7ea90f1dd06919f70d8977aa"
+      "sha256_lf": "332a6673879265436083b8f6475293d2c8001e1f7ea90f1dd06919f70d8977aa",
+      "bytes": 12123
     },
     {
       "path": "vector_rag_system.py",
       "sha256": "1ab3d5afa20b0db9c596b70ca3b1e84bee5e5f71e583b357fd148de233a1e918",
-      "bytes": 18113,
-      "sha256_lf": "1ab3d5afa20b0db9c596b70ca3b1e84bee5e5f71e583b357fd148de233a1e918"
+      "sha256_lf": "1ab3d5afa20b0db9c596b70ca3b1e84bee5e5f71e583b357fd148de233a1e918",
+      "bytes": 18113
     }
   ],
-  "active_deployment": "fbedf128-6a59-4343-b76d-f5d0bd224062",
-  "image_source_deployment": "d3435c53-c69b-46c0-850b-78d6528bcdd9",
+  "active_deployment": "58c41a2e-720b-4f9c-998a-7628bfa8b320",
+  "image_source_deployment": "58c41a2e-720b-4f9c-998a-7628bfa8b320",
   "schema_version": 1,
   "repository": "https://github.com/mlynnf123/GFMD",
-  "release_date": "2026-11-22",
+  "release_date": "2026-11-24",
   "container_python": "3.11.18",
   "dashboard": {
     "deployment_id": "dpl_EVpRux7BADBddgwT9my2nbydGcgD",
@@ -371,11 +371,25 @@
   },
   "verification": {
     "offline_tests": 41,
-    "runtime_tests": 28,
+    "runtime_tests": 32,
     "dashboard_build": "passed",
     "dashboard_lint_errors": 0,
-    "dashboard_lint_warnings": 8
+    "dashboard_lint_warnings": 8,
+    "worker_test_date": "2026-11-24",
+    "worker_live_readiness": "Gmail identity/inbox, MongoDB and synthetic AI generation passed; scheduler running"
   },
   "credentials": "Hosting environments only; no credential values or mailbox/customer audit data included",
-  "hash_notes": "Worker sha256 records deployed bytes; sha256_lf allows platform line endings. Dashboard source UIDs are from Vercel; five credential-free route edits are intentional."
+  "hash_notes": "Worker sha256 records deployed bytes; sha256_lf allows platform line endings. Dashboard source UIDs are from Vercel; five credential-free route edits are intentional.",
+  "previous_worker_deployment": "fbedf128-6a59-4343-b76d-f5d0bd224062",
+  "reply_policy_update": {
+    "default_auto_reply_limit": 2,
+    "approved_total_limit_range": [
+      2,
+      10
+    ],
+    "policy_collection": "reply_policies",
+    "contact_policy_and_correction_records": "Private MongoDB records only; excluded from Git",
+    "quoted_history_protection": "Daily human-reply suppression analysis now strips quotes for every campaign",
+    "operational_notes": "No historical send records removed and no stopped outreach restarted"
+  }
 }

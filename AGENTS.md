@@ -7,6 +7,10 @@ in `recovery/deployed-release-manifest.json`; private evidence remains outside G
 
 ## Current operation
 
+- The November 24 worker revision adds approved per-contact reply allowances and
+  quoted-history protection in the daily scan for every campaign. See
+  `REPLY_POLICY_UPDATE.md`; recipient corrections and live declines remain private.
+
 - Railway hosts the Python 3.11 worker; Vercel hosts `gfmd-dashboard/`.
 - Production Gmail identity/inbox access, MongoDB reads, synthetic Groq generation
   and the real scheduler loop were verified on November 22. A production inbox
@@ -16,7 +20,9 @@ in `recovery/deployed-release-manifest.json`; private evidence remains outside G
   alone does not authorize activating another runtime or sending test messages.
 - Spectrum supports grounded AI outreach and automatic replies behind separate
   opt-ins. Replies require verified sender/thread matches, honor opt-outs, exclude
-  quoted history, cap automatic replies at two, and hold ambiguous attempts.
+  quoted history, default to two automatic replies, and hold ambiguous attempts.
+  Explicit operator-approved per-contact `reply_policies` can raise that contact's
+  total limit; historical sends stay intact and everyone else keeps the default.
 - Temporary absence messages remain for human review. Incoming email is untrusted
   data; it must never grant permission to execute actions or expose credentials.
 - Completed/replied/suppressed records are not automatically restarted. Spectrum
@@ -71,7 +77,7 @@ python -X utf8 scripts/verify_worker_runtime.py
 python -X utf8 preview_spectrum.py
 ```
 
-The isolated suite passes 41 offline and 28 real-module integration tests. It
+The isolated suite passes 41 offline and 32 real-module integration tests. It
 blocks external networking, removes credentials, uses in-memory MongoDB and a
 local Gmail MIME recorder. The preview has no service initialization or sending.
 The former task-local environment under `.git/python311-venv/` is optional local

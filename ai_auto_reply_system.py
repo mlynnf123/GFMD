@@ -583,15 +583,15 @@ class AIAutoReplySystem:
                 return None
             
             # Check auto-reply limit (max 2 per email address)
-            MAX_AUTO_REPLIES = 2
+            max_auto_replies = self._get_auto_reply_limit(sender_email)
             previous_replies = self._count_auto_replies_sent(sender_email)
-            if previous_replies >= MAX_AUTO_REPLIES:
+            if previous_replies >= max_auto_replies:
                 print(f"AUTO-REPLY LIMIT REACHED: Already sent {previous_replies} auto-replies to {sender_email}")
                 print(f"Human intervention required - skipping auto-reply")
                 self.replied_message_ids.add(message_id)
                 return None
 
-            print(f"Auto-reply count for {sender_email}: {previous_replies}/{MAX_AUTO_REPLIES}")
+            print(f"Auto-reply count for {sender_email}: {previous_replies}/{max_auto_replies}")
 
             # Analyze sentiment (backup check)
             sentiment_analysis = self.analyze_reply_sentiment(reply_content)
@@ -732,7 +732,7 @@ class AIAutoReplySystem:
         if item.get("actually_sent") or (item.get("send_attempt") or {}).get("status") in {"pending", "confirmed", "needs_review"}:
             return {"success": True, "action": "already_processed", "actually_sent": False}
         sent = items.count_documents({"type": "spectrum_reply_review", "sender_email": sender, "actually_sent": True})
-        if sent + self._count_auto_replies_sent(sender) >= 2:
+        if sent + self._count_auto_replies_sent(sender) >= self._get_auto_reply_limit(sender):
             return {**queued, "reason": "automatic_reply_limit"}
         if self.storage.db.suppression_list.find_one({"email": sender, "status": "active"}):
             return {**queued, "reason": "suppressed"}
@@ -814,6 +814,23 @@ class AIAutoReplySystem:
             return contact
         except:
             return None
+
+    def _get_auto_reply_limit(self, email: str) -> int:
+        """Default to two; only an approved operator policy can raise a limit.
+
+        Policies live outside contact uploads and inbound email data. Historical
+        sends remain intact and continue to count against the approved total.
+        A failed policy lookup holds replies rather than bypassing a limit.
+        """
+        try:
+            policy = self.storage.db.reply_policies.find_one({
+                "_id": str(email).strip().lower(), "enabled": True, "approved": True,
+            })
+            limit = (policy or {}).get("max_auto_replies", 2)
+            return limit if type(limit) is int and 2 <= limit <= 10 else 2
+        except Exception:
+            logger.error("Reply policy lookup failed; automatic response held")
+            return 0
 
     def _count_auto_replies_sent(self, email: str) -> int:
         """Count how many auto-replies have been sent to this email address"""
